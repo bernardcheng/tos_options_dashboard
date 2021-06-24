@@ -50,6 +50,11 @@ Interactive dashboard to filter and analyse stock options contracts (Built using
 
 4. The corresponding historical price charts for the specified stock ticker is generated along with the associated cone of probability (Default: 70% confidence level).
 
-   ![step4-results](/doc_img/results.png)
+   ![step4-results](/doc_img/step4-results.png)
 
-5. xx
+5. The dashboard also measures the Call / Put skew of the specified ticker, as well as listing the option contracts that matches the filter requirements in Step 3.
+
+   * Put Skew: Defined as the price of 10% OTM puts/10% OTM calls for the next monthly option expiry
+   * Call Skew: Defined as the price of 10% OTM calls/10% OTM puts for the next monthly option expiry.
+
+   ![step5-results](/doc_img/step5-results.png)
