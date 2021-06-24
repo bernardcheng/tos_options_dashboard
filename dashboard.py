@@ -409,9 +409,9 @@ def update_search(search_value, ticker_switch, value):
         raise PreventUpdate
     
     if ticker_switch:
-        json_data = tos_search(search_value, projection='symbol-search')
+        json_data = tos_search(search_value, projection='symbol-search', apiKey=API_KEY)
     else:
-        json_data = tos_search(search_value, projection='desc-search')
+        json_data = tos_search(search_value, projection='desc-search', apiKey=API_KEY)
     
     try:
         #To-do: Dynamic Options (https://dash.plotly.com/dash-core-components/dropdown)
@@ -436,7 +436,7 @@ def get_historical_prices(n_clicks, ticker_ls):
     json_data = {}
 
     for ticker in ticker_ls:
-        json_data[ticker] = tos_get_price_hist(ticker)  
+        json_data[ticker] = tos_get_price_hist(ticker, apiKey=API_KEY)  
 
     return json_data
 
@@ -453,7 +453,7 @@ def on_data_set_ticker_table(n_clicks, page_current, page_size, sort_by, ticker_
         raise PreventUpdate 
 
     for ticker in ticker_ls: 
-        option_chain_response = tos_get_option_chain(ticker, contractType='ALL', rangeType='ALL')  
+        option_chain_response = tos_get_option_chain(ticker, contractType='ALL', rangeType='ALL', apiKey=API_KEY)  
 
         # Sanity check on API response data
         if option_chain_response is None or list(option_chain_response.keys())[0] == "error":
@@ -579,7 +579,7 @@ def on_data_set_table(n_clicks, hist_data, page_current, page_size, sort_by, tic
         raise PreventUpdate 
 
     for ticker in ticker_ls: 
-        option_chain_response = tos_get_option_chain(ticker, contractType=contract_type)  
+        option_chain_response = tos_get_option_chain(ticker, contractType=contract_type, apiKey=API_KEY)  
         hist_price = hist_data[ticker]
 
         # Sanity check on API response data
@@ -598,7 +598,7 @@ def on_data_set_table(n_clicks, hist_data, page_current, page_size, sort_by, tic
 
         ## Comment-out original stockprice method due to incorrect actual price quotes (intraday)
         # stock_price = option_chain_response['underlyingPrice']
-        stock_price = tos_get_quotes(ticker)[ticker]['lastPrice']
+        stock_price = tos_get_quotes(ticker, apiKey=API_KEY)[ticker]['lastPrice']
 
         # Process API response data from https://developer.tdameritrade.com/option-chains/apis/get/marketdata/chains into Dataframe
         for option_chain_type in ['call','put']:
@@ -668,18 +668,18 @@ def on_data_set_graph(hist_data, tab, ticker_ls):
     for ticker in ticker_ls:
 
         if tab == 'price_tab_1': # 1 Day
-            hist_price = tos_get_price_hist(ticker, periodType='day', period=1, frequencyType='minute', frequency=1)  
+            hist_price = tos_get_price_hist(ticker, periodType='day', period=1, frequencyType='minute', frequency=1, apiKey=API_KEY)  
         elif tab == 'price_tab_2': # 5 Days
-            hist_price = tos_get_price_hist(ticker, periodType='day', period=5, frequencyType='minute', frequency=5)
+            hist_price = tos_get_price_hist(ticker, periodType='day', period=5, frequencyType='minute', frequency=5, apiKey=API_KEY)
         elif tab == 'price_tab_3': # 1 Month
-            hist_price = tos_get_price_hist(ticker, periodType='month', period=1, frequencyType='daily', frequency=1)
+            hist_price = tos_get_price_hist(ticker, periodType='month', period=1, frequencyType='daily', frequency=1, apiKey=API_KEY)
         elif tab == 'price_tab_4': # 1 Year
             hist_price = hist_data[ticker]
 
             if hist_price is None:
                 raise PreventUpdate   
         elif tab == 'price_tab_5': # 5 Years
-            hist_price = tos_get_price_hist(ticker, periodType='year', period=5, frequencyType='daily', frequency=1)  
+            hist_price = tos_get_price_hist(ticker, periodType='year', period=5, frequencyType='daily', frequency=1, apiKey=API_KEY)  
 
         for candle in hist_price['candles']:
 
@@ -711,7 +711,7 @@ def on_data_set_graph2(hist_data, tab, ticker_ls, contract_type, expday_range):
         raise PreventUpdate 
 
     for ticker in ticker_ls: 
-        option_chain_response = tos_get_option_chain(ticker, contractType=contract_type)  
+        option_chain_response = tos_get_option_chain(ticker, contractType=contract_type, apiKey=API_KEY)  
         hist_price = hist_data[ticker]
 
         # Sanity check on API response data
@@ -727,7 +727,7 @@ def on_data_set_graph2(hist_data, tab, ticker_ls, contract_type, expday_range):
 
         ## Comment-out original stockprice method due to incorrect actual price quotes (intraday)
         # stock_price = option_chain_response['underlyingPrice']
-        stock_price = tos_get_quotes(ticker)[ticker]['lastPrice']
+        stock_price = tos_get_quotes(ticker, apiKey=API_KEY)[ticker]['lastPrice']
 
         if tab == 'prob_tab_1': # Historical Volatlity
 
