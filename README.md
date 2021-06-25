@@ -25,6 +25,15 @@ Interactive dashboard to filter and analyse stock options contracts (Built using
    pip install -r requirements.txt
    ```
 
+3. [Docker Option] To build and run the docker container, run the following lines in the terminal/command prompt. After running docker run, proceed with step 2 of the Usage section.
+
+   	* [Docker Troubleshooting](https://www.thegeekdiary.com/docker-troubleshooting-conflict-unable-to-delete-image-is-being-used-by-running-container/)
+
+   ```terminal
+   docker build -t tos_options_dashboard .
+   docker run -p 8050:8050 tos_options_dashboard
+   ```
+
 ## Usage:
 
 1. Run the python file dashboard.py

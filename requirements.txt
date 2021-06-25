@@ -1,6 +1,6 @@
 dash==1.16.0
+dash-bootstrap-components==0.12.2
 matplotlib==3.3.0
-mysql-connector-python==8.0.21
 numpy==1.19.1
 pandas==1.1.0
 plotly==4.9.0

@@ -1,6 +1,7 @@
 import os
 import yaml
 import collections
+import argparse
 import numpy as np
 import pandas as pd
 import statistics as stat
@@ -23,6 +24,11 @@ from src.stats import get_hist_volatility, prob_cone
 
 # app = dash.Dash(__name__)
 app = dash.Dash(external_stylesheets=[dbc.themes.BOOTSTRAP])
+
+# Docker support
+parser = argparse.ArgumentParser()
+parser.add_argument("--docker", help="Change the default server host to 0.0.0.0", action='store_true')
+args = parser.parse_args()
 
 # API credentials 
 config_file_path = os.path.join(os.getcwd(),'config.yml')
@@ -819,4 +825,7 @@ def on_data_set_graph2(hist_data, tab, ticker_ls, contract_type, expday_range):
 
 
 if __name__ == '__main__':
-    app.run_server(debug=True)
+    if args.docker:
+        app.run_server(host='0.0.0.0', debug=True)
+    else:
+        app.run_server(debug=True)
