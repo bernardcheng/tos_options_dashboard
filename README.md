@@ -2,7 +2,14 @@
 
 ## Project Description:
 
-Interactive dashboard to filter and analyse stock options contracts (Built using data from ThinkOrSwim's Option Chain API and Plotly Dash components).
+An interactive dashboard to filter and analyze stock options contracts (Built using data from ThinkOrSwim's Option Chain API and Plotly Dash components). It is useful for quickly scanning option chains to look for individual profitable options contracts to trade on. 
+
+Filter options include:
+
+* Return of Investment (ROI) Range: Percentage of premium received (by selling an contract) over the underlying amount (strike price * 100)
+* Delta Range: Represents current probability that the option contract will expire [in-the-money](https://www.investopedia.com/terms/i/inthemoney.asp) (i.e. Option is exercised)
+* Option Contract Type: Call/Put/All (both call and put options)
+* Days to expiration: No. of days till options contract is set to expire
 
 ## Pre-requisites:
 

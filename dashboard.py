@@ -42,10 +42,10 @@ PLOTLY_LOGO = "https://images.plot.ly/logo/new-branding/plotly-logomark.png"
 # ------------------------------------------------------------------------------
 
 # Define column names in Ticker Pandas Dataframe
-ticker_df_columns = {'Ticker Symbol':'ticker', 'Skew Category':'skew_category', 'Skew':'skew', 'Liquidity':'liquidity'}
+ticker_df_columns = {'Ticker Symbol':'ticker', '1Y Hist. Volatility (%)':'hist_volatility_1Y', '3M Hist. Volatility (%)':'hist_volatility_3m', '1M Hist. Volatility (%)':'hist_volatility_1m', 'Skew Category':'skew_category', 'Skew':'skew', 'Liquidity':'liquidity'}
 
 # Define column names in Options Chain Pandas Dataframe
-df_columns = {'Ticker Symbol':'ticker', 'Expiration Date':'exp_date', 'Option Type':'option_type', 'Strike Price ($)':'strike_price', 'Days to Expiration':'exp_days', 'Delta':'delta','Premium ($)':'premium', 'Bid Size':'bid_size', 'Ask Size':'ask_size', 'ROI (%)':'roi'}
+df_columns = {'Ticker Symbol':'ticker', 'Expiration Date (Local)':'exp_date', 'Option Type':'option_type', 'Strike Price ($)':'strike_price', 'Days to Expiration':'exp_days', 'Delta':'delta','Premium ($)':'premium', 'Bid Size':'bid_size', 'Ask Size':'ask_size', 'ROI (%)':'roi'}
 # df_columns = ['Ticker Symbol', 'Expiration Date', 'Option Type', 'Strike Price ($)', 'Days to Expiration', 'Premium ($)', 'Bid Size', 'Ask Size', 'ROI (%)']
 
 # ------------------------------------------------------------------------------
@@ -63,7 +63,7 @@ app.layout = html.Div([
                 dbc.Row(
                     [
                         dbc.Col(html.Img(src=PLOTLY_LOGO, height="30px"), width=2),
-                        dbc.Col(dbc.NavbarBrand("TOS Options Wheel Dashboard", className="ml-2")),
+                        dbc.Col(dbc.NavbarBrand("TOS Options Wheel Dashboard", className="ml-auto")),
                     ],
                     align="center",
                     no_gutters=True,
@@ -272,6 +272,7 @@ app.layout = html.Div([
             # \nA call skew of 1.3 means the 10% OTM call is 1.3x the price of 10% OTM put.
             # Potential Causes of Call Skew: \n\u2022 Unusual and extreme speculation of stocks. Eg: TSLA battery day \n\u2022 Stocks with limited downside but very high upside. Eg: Bankrupt stock trading at a fraction of book value, or SPACs near PIPE value \n\u2022 High demand/Low supply for calls, driving up call prices. \n\u2022 Low demand/High supply for puts, driving down put prices.
             # ''')),
+            
             dbc.Card(dbc.CardBody(dcc.Markdown('''
             Call skew is defined as the price of 10% OTM calls/10% OTM puts for the next monthly option expiry.  \n
             A call skew of 1.3 means the 10% OTM call is 1.3x the price of 10% OTM put.  \n
@@ -448,9 +449,9 @@ def get_historical_prices(n_clicks, ticker_ls):
 
 # Update Ticker Table from API Response call
 @app.callback(Output('ticker-data-table', 'data'),
-              [Input('submit-button-state', 'n_clicks'), Input('ticker-data-table', "page_current"), Input('ticker-data-table', "page_size"), Input('ticker-data-table', "sort_by")],
+              [Input('submit-button-state', 'n_clicks'), Input('storage-historical', 'data'), Input('ticker-data-table', "page_current"), Input('ticker-data-table', "page_size"), Input('ticker-data-table', "sort_by")],
               [State('memory-ticker', 'value')])
-def on_data_set_ticker_table(n_clicks, page_current, page_size, sort_by, ticker_ls):
+def on_data_set_ticker_table(n_clicks, hist_data, page_current, page_size, sort_by, ticker_ls):
     
     # Define empty list to be accumulate into Pandas dataframe (Source: https://stackoverflow.com/questions/10715965/add-one-row-to-pandas-dataframe)
     insert = []
@@ -460,10 +461,23 @@ def on_data_set_ticker_table(n_clicks, page_current, page_size, sort_by, ticker_
 
     for ticker in ticker_ls: 
         option_chain_response = tos_get_option_chain(ticker, contractType='ALL', rangeType='ALL', apiKey=API_KEY)  
+        hist_price = hist_data[ticker]
 
         # Sanity check on API response data
         if option_chain_response is None or list(option_chain_response.keys())[0] == "error":
             raise PreventUpdate 
+
+        # Create and append a list of historical share prices of specified ticker
+        PRICE_LS =[]
+        for candle in hist_price['candles']:
+            PRICE_LS.append(candle['close'])
+
+        trailing_3mth_price_hist = PRICE_LS[-90:]
+        trailing_1mth_price_list = PRICE_LS[-30:]
+
+        hist_volatility_1Y = round(get_hist_volatility(PRICE_LS) * 100.0, 3)
+        hist_volatility_3m = round(get_hist_volatility(trailing_3mth_price_hist) * 100.0, 3)
+        hist_volatility_1m = round(get_hist_volatility(trailing_1mth_price_list) * 100.0, 3)
 
         stock_price = option_chain_response['underlyingPrice']
         stock_price_110percent = stock_price * 1.1
@@ -550,7 +564,7 @@ def on_data_set_ticker_table(n_clicks, page_current, page_size, sort_by, ticker_
             skew_category = 'Call Skew'
             skew = round(call_110percent_price/put_90percent_price,3)
 
-        insert.append([ticker, skew_category, skew, liquidity])
+        insert.append([ticker, hist_volatility_1Y, hist_volatility_3m, hist_volatility_1m, skew_category, skew, liquidity])
     
     # Create Empty Dataframe to be populated
     df = pd.DataFrame(insert, columns=list(ticker_df_columns.values()))
@@ -737,13 +751,13 @@ def on_data_set_graph2(hist_data, tab, ticker_ls, contract_type, expday_range):
 
         if tab == 'prob_tab_1': # Historical Volatlity
 
-            df_cols = ['Ticker Symbol', 'Day', 'Stock Price', 'Lower Bound', 'Upper Bound']
+            df_cols = ['Ticker Symbol', 'Day', 'Stock Price', 'Lower Bound', 'Upper Bound', 'Days to Expiry']
 
             for i_day in range(expday_range + 1):
 
                 lower_bound, upper_bound = prob_cone(stock_price, hist_volatility, i_day, probability=0.7)
 
-                insert.append([ticker, (date.today() + timedelta(days=i_day)), stock_price, lower_bound, upper_bound])
+                insert.append([ticker, (date.today() + timedelta(days=i_day)), stock_price, lower_bound, upper_bound, i_day])
 
         elif tab == 'prob_tab_2': # GBM Simulation
 
@@ -794,13 +808,15 @@ def on_data_set_graph2(hist_data, tab, ticker_ls, contract_type, expday_range):
                         x=df['Day'], 
                         y=df.loc[df['Ticker Symbol']==ticker,['Upper Bound']].squeeze(),
                         mode='lines+markers',
-                        name=f'{ticker} - Upper Bound')
+                        name=f'{ticker} - Upper Bound',
+                        line_shape='spline')
                     )
             fig.add_trace(go.Scatter(
                         x=df['Day'], 
                         y=df.loc[df['Ticker Symbol']==ticker,['Lower Bound']].squeeze(),
                         mode='lines+markers',
-                        name=f'{ticker} - Lower Bound')
+                        name=f'{ticker} - Lower Bound',
+                        line_shape='spline')
                     )
 
         fig.update_layout(
