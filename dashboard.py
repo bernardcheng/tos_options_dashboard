@@ -1,5 +1,4 @@
 import os
-import yaml
 import collections
 import argparse
 import numpy as np
@@ -7,7 +6,6 @@ import pandas as pd
 import statistics as stat
 from datetime import datetime, timedelta, date
 
-import plotly.express as px  # (version 4.7.0)
 import plotly.graph_objects as go
 
 import dash  # (version 1.12.0) pip install dash
@@ -31,9 +29,7 @@ parser.add_argument("--docker", help="Change the default server host to 0.0.0.0"
 args = parser.parse_args()
 
 # API credentials 
-config_file_path = os.path.join(os.getcwd(),'config.yml')
-config = yaml.load(open(config_file_path), Loader=yaml.FullLoader)
-API_KEY = config['TOS_API']['API_KEY']
+API_KEY = os.environ.get('TOS_API_KEY')
 
 # Data Table Properties
 PAGE_SIZE = 30
@@ -62,8 +58,8 @@ app.layout = html.Div([
                 # Use row and col to control vertical alignment of logo / brand
                 dbc.Row(
                     [
-                        dbc.Col(html.Img(src=PLOTLY_LOGO, height="30px"), width=2),
-                        dbc.Col(dbc.NavbarBrand("TOS Options Wheel Dashboard", className="ml-auto")),
+                        dbc.Col(html.Img(src=PLOTLY_LOGO, height="30px")),
+                        dbc.Col(dbc.NavbarBrand("TOS Options Wheel Dashboard", className="ml-2")),
                     ],
                     align="center",
                     no_gutters=True,
@@ -170,36 +166,89 @@ app.layout = html.Div([
         }
         ),
 
+        # html.Div([
+        #     html.H5("Day(s) to Expiration:"),
+        #     dcc.Slider(
+        #                 id='memory-expdays',
+        #                 min=1,
+        #                 max=100,
+        #                 value=14,
+        #                 # marks={i: '{}'.format(i) for i in range(100)},
+        #                 marks={
+        #                     10: {'label': '10'},
+        #                     20: {'label': '20'},
+        #                     30: {'label': '30'},
+        #                     40: {'label': '40'},
+        #                     50: {'label': '50'},
+        #                     60: {'label': '60'},
+        #                     70: {'label': '70'},
+        #                     80: {'label': '80'},
+        #                     90: {'label': '90'},
+        #                     100: {'label': '100'},
+        #                 },
+        #                 updatemode='drag'                
+        #             )
+        #     ],
+        #     style={
+        #         'padding': '10px 5px'
+        #     }
+        # ),
+
         html.Div([
-            html.H5("Day(s) to Expiration:"),
-            dcc.Slider(
-                        id='memory-expdays',
-                        min=1,
-                        max=100,
-                        value=14,
-                        # marks={i: '{}'.format(i) for i in range(100)},
-                        marks={
-                            10: {'label': '10'},
-                            20: {'label': '20'},
-                            30: {'label': '30'},
-                            40: {'label': '40'},
-                            50: {'label': '50'},
-                            60: {'label': '60'},
-                            70: {'label': '70'},
-                            80: {'label': '80'},
-                            90: {'label': '90'},
-                            100: {'label': '100'},
-                        },
-                        updatemode='drag'                
-                    )
-            ],
-            style={
-                'padding': '10px 5px'
-            }
+                dbc.Row(
+                    [dbc.Col(
+                            html.Div([
+                                html.H5("Day(s) to Expiration:"),
+                                dcc.Dropdown(
+                                        id="memory-expdays",
+                                        options=[
+                                            {"label": "0 - 7 days", "value": 7},
+                                            {"label": "0 - 14 days", "value": 14},
+                                            {"label": "0 - 21 days", "value": 21},
+                                            {"label": "0 - 28 days", "value": 28},
+                                            {"label": "0 - 35 days", "value": 35}
+                                        ],
+                                        multi=False,
+                                        value=14.00
+                                    )
+                                ],
+                                # style={'width': '30%', 'float': 'left', 'display': 'inline-block'}
+                            )
+                        ),
+                        dbc.Col(
+                            html.Div([
+                                html.H5("Confidence Level:"),
+                                dcc.Dropdown(
+                                        id="memory-confidence",
+                                        options=[
+                                            {"label": "50% Confidence", "value": 0.5},
+                                            {"label": "55% Confidence", "value": 0.55},
+                                            {"label": "60% Confidence", "value": 0.6},
+                                            {"label": "65% Confidence", "value": 0.65},
+                                            {"label": "70% Confidence", "value": 0.7},
+                                            {"label": "75% Confidence", "value": 0.75},
+                                            {"label": "80% Confidence", "value": 0.8},
+                                            {"label": "85% Confidence", "value": 0.85},
+                                            {"label": "90% Confidence", "value": 0.9}
+                                        ],
+                                        multi=False,
+                                        value=0.7
+                                    )
+                                ],
+                                # style={'width': '30%', 'display': 'inline-block'}
+                            )
+                        ),
+                    ]
+                ),          
+        ],
+        style={
+            # 'borderBottom': 'thin lightgrey solid',
+            'padding': '10px 5px'
+        }
         ),
 
         html.Div([
-            dbc.Button("Submit", id='submit-button-state', size="lg", color="primary")
+            dbc.Button("Submit", id='submit-button-state', color="info")
             ],
             style={'margin-bottom': '10px',
                 'textAlign':'center',
@@ -589,8 +638,8 @@ def on_data_set_ticker_table(n_clicks, hist_data, page_current, page_size, sort_
 # Update Table based on stored JSON value from API Response call 
 @app.callback(Output('option-chain-table', 'data'),
               [Input('submit-button-state', 'n_clicks'), Input('storage-historical', 'data'), Input('option-chain-table', "page_current"), Input('option-chain-table', "page_size"), Input('option-chain-table', "sort_by")],
-              [State('memory-ticker', 'value'), State('memory-contract-type','value'), State('memory-roi', 'value'), State('memory-delta', 'value'),  State('memory-expdays','value')])
-def on_data_set_table(n_clicks, hist_data, page_current, page_size, sort_by, ticker_ls, contract_type, roi_selection, delta_range, expday_range):
+              [State('memory-ticker', 'value'), State('memory-contract-type','value'), State('memory-roi', 'value'), State('memory-delta', 'value'),  State('memory-expdays','value'), State('memory-confidence','value')])
+def on_data_set_table(n_clicks, hist_data, page_current, page_size, sort_by, ticker_ls, contract_type, roi_selection, delta_range, expday_range, confidence_lvl):
     
     # Define empty list to be accumulate into Pandas dataframe (Source: https://stackoverflow.com/questions/10715965/add-one-row-to-pandas-dataframe)
     insert = []
@@ -642,7 +691,7 @@ def on_data_set_table(n_clicks, hist_data, page_current, page_size, sort_by, tic
                     option_premium = round(strike[0]['bid'] * strike[0]['multiplier'],2)
                     roi_val = round((option_premium/(strike_price*100)) *100,2)
 
-                    lower_bound, upper_bound = prob_cone(stock_price, hist_volatility, day_diff, probability=0.7)
+                    lower_bound, upper_bound = prob_cone(PRICE_LS, stock_price, hist_volatility, day_diff, probability=confidence_lvl)
                     if day_diff <= expday_range:
                         if roi_val >= roi_selection and (abs(delta_val) <= delta_range):
                             if (option_type=='CALL' and strike_price >= upper_bound) or (option_type == "PUT" and strike_price <= lower_bound):
@@ -720,8 +769,8 @@ def on_data_set_graph(hist_data, tab, ticker_ls):
 # Update Prob Cone Graph based on stored JSON value from API Response call 
 @app.callback(Output('prob_cone_chart', 'figure'),
               [Input('storage-historical', 'data'), Input('tabs_prob_chart', 'value')],
-              [State('memory-ticker', 'value'), State('memory-contract-type','value'),  State('memory-expdays','value')])
-def on_data_set_graph2(hist_data, tab, ticker_ls, contract_type, expday_range):
+              [State('memory-ticker', 'value'), State('memory-contract-type','value'),  State('memory-expdays','value'), State('memory-confidence','value')])
+def on_data_set_graph2(hist_data, tab, ticker_ls, contract_type, expday_range, confidence_lvl):
     
     # Define empty list to be accumulate into Pandas dataframe (Source: https://stackoverflow.com/questions/10715965/add-one-row-to-pandas-dataframe)
     insert = []   
@@ -755,7 +804,7 @@ def on_data_set_graph2(hist_data, tab, ticker_ls, contract_type, expday_range):
 
             for i_day in range(expday_range + 1):
 
-                lower_bound, upper_bound = prob_cone(stock_price, hist_volatility, i_day, probability=0.7)
+                lower_bound, upper_bound = prob_cone(PRICE_LS, stock_price, hist_volatility, i_day, probability=confidence_lvl)
 
                 insert.append([ticker, (date.today() + timedelta(days=i_day)), stock_price, lower_bound, upper_bound, i_day])
 
@@ -820,7 +869,7 @@ def on_data_set_graph2(hist_data, tab, ticker_ls, contract_type, expday_range):
                     )
 
         fig.update_layout(
-            title='Probability Cone (70% Confidence)',
+            title=f'Probability Cone ({confidence_lvl*100}% Confidence)',
             title_x=0.5, # Centre the title text
             yaxis_title='Stock Price',
             plot_bgcolor='rgb(256,256,256)' # White Plot background

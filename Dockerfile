@@ -11,7 +11,10 @@ COPY assets /dashboard_app/assets
 
 # Add the main dashboard script and config file to working directory of Docker Image
 ADD dashboard.py .
-ADD config.yml .
+
+# Set up environment variable (TOS API Key) in Docker
+ARG api_key = ENTER_API_KEY_HERE
+ENV TOS_API_KEY=$api_key
 
 # Run installation of python libraries in Docker Image
 RUN pip3 install -r requirements.txt

@@ -19,12 +19,18 @@ Filter options include:
 
    * [Reddit: Guide to TOS Developer App set-up](https://www.reddit.com/r/algotrading/comments/914q22/successful_access_to_td_ameritrade_api/)
 
-   * Enter the API key into the config.yml file.
+   * If you are using Docker, proceed to step 1a), else go to step 1b). 
 
-     ```yaml
-     TOS_API:
-         API_KEY: ENTER_TOS_API_KEY_HERE
+     a) Enter the API key into the Dockerfile.
+
+     ```dockerfile
+     ARG api_key = ENTER_API_KEY_HERE
      ```
+
+     b) Set the API key as an environment variable (it should be named TOS_API_KEY). 
+
+     * [Environment Variables in Windows](https://www.youtube.com/watch?v=IolxqkL7cD8&t=136s)
+     * [Environment Variables in Mac/Linux](https://www.youtube.com/watch?v=5iWhQWVXosU)
 
 2. Activate virtual environment in the directory of choice and install the necessary libraries outlined in requirements.txt . 
 
@@ -40,6 +46,12 @@ Filter options include:
    docker build -t tos_options_dashboard .
    docker run -p 8050:8050 tos_options_dashboard
    ```
+   
+   * Note: You can override the default value of the TOS API Key set in Dockerfile by running the following command during build
+   
+     ```dockerfile
+     docker build --build-arg api_key=<NEW_API_KEY> -t tos_options_dashboard .
+     ```
 
 ## Usage:
 
@@ -49,7 +61,7 @@ Filter options include:
    python dashboard.py
    ```
 
-2. The Dashboard would be running on local host (Port: 8050) by default. Open the web browser and enter the corresponding address (http://127.0.0.1:8050/) to view the Dashboard.
+2. The Dashboard would be running on local host (Port: 8050) by default. Open the web browser and enter the corresponding localhost address (http://127.0.0.1:8050/) to view the Dashboard.
 
 3. To start using the Dashboard, activate Ticker mode before entering the stock ticker of interest (e.g. AAPL for Apple Inc. stock).
 
