@@ -8,9 +8,12 @@ def prob_cone(price_ls:list, stock_price:float, volatility:float, days_ahead:int
 
     # z_score param indicates the number of std deviations from the mean (i.e. 1.5 std dev covers about 87%)
     # Source: https://stackoverflow.com/questions/20864847/probability-to-z-score-and-vice-versa
-    # z_score = st.norm.ppf(1-((1-probability)/2))
-    z_score = st.norm.ppf(1-(probability/2))
-    # z_score = st.norm.ppf(probability)
+    z_score = st.norm.ppf(1-((1-probability)/2))
+    # z_score = st.norm.ppf(1-(probability/2))
+
+    # log_price_array = np.log(np.array(price_ls))
+
+    # z_score = st.norm.ppf(1-((1-probability)/2), log_price_array.mean(), log_price_array.std())
 
     # z_score = st.lognorm.ppf(1-((1-probability)/2), np.log(np.array(price_ls)).std())
 

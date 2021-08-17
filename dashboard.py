@@ -221,6 +221,10 @@ app.layout = html.Div([
                                 dcc.Dropdown(
                                         id="memory-confidence",
                                         options=[
+                                            {"label": "30% Confidence", "value": 0.3},
+                                            {"label": "35% Confidence", "value": 0.35},
+                                            {"label": "40% Confidence", "value": 0.4},
+                                            {"label": "45% Confidence", "value": 0.45},
                                             {"label": "50% Confidence", "value": 0.5},
                                             {"label": "55% Confidence", "value": 0.55},
                                             {"label": "60% Confidence", "value": 0.6},
@@ -232,7 +236,24 @@ app.layout = html.Div([
                                             {"label": "90% Confidence", "value": 0.9}
                                         ],
                                         multi=False,
-                                        value=0.7
+                                        value=0.5
+                                    )
+                                ],
+                                # style={'width': '30%', 'display': 'inline-block'}
+                            )
+                        ),
+                        dbc.Col(
+                            html.Div([
+                                html.H5("Hist. Volatility Period:"),
+                                dcc.Dropdown(
+                                        id="memory-vol-period",
+                                        options=[
+                                            {"label": "1 Month", "value": "1M"},
+                                            {"label": "3 Months", "value": "3M"},                                           
+                                            {"label": "1 Year", "value": "1Y"}
+                                        ],
+                                        multi=False,
+                                        value="1M"
                                     )
                                 ],
                                 # style={'width': '30%', 'display': 'inline-block'}
@@ -638,8 +659,8 @@ def on_data_set_ticker_table(n_clicks, hist_data, page_current, page_size, sort_
 # Update Table based on stored JSON value from API Response call 
 @app.callback(Output('option-chain-table', 'data'),
               [Input('submit-button-state', 'n_clicks'), Input('storage-historical', 'data'), Input('option-chain-table', "page_current"), Input('option-chain-table', "page_size"), Input('option-chain-table', "sort_by")],
-              [State('memory-ticker', 'value'), State('memory-contract-type','value'), State('memory-roi', 'value'), State('memory-delta', 'value'),  State('memory-expdays','value'), State('memory-confidence','value')])
-def on_data_set_table(n_clicks, hist_data, page_current, page_size, sort_by, ticker_ls, contract_type, roi_selection, delta_range, expday_range, confidence_lvl):
+              [State('memory-ticker', 'value'), State('memory-contract-type','value'), State('memory-roi', 'value'), State('memory-delta', 'value'),  State('memory-expdays','value'), State('memory-confidence','value'), State('memory-vol-period','value')])
+def on_data_set_table(n_clicks, hist_data, page_current, page_size, sort_by, ticker_ls, contract_type, roi_selection, delta_range, expday_range, confidence_lvl, volatility_period):
     
     # Define empty list to be accumulate into Pandas dataframe (Source: https://stackoverflow.com/questions/10715965/add-one-row-to-pandas-dataframe)
     insert = []
@@ -663,7 +684,13 @@ def on_data_set_table(n_clicks, hist_data, page_current, page_size, sort_by, tic
         trailing_3mth_price_hist = PRICE_LS[-90:]
         trailing_1mth_price_list = PRICE_LS[-30:]
 
-        hist_volatility = max([get_hist_volatility(PRICE_LS), get_hist_volatility(trailing_3mth_price_hist), get_hist_volatility(trailing_1mth_price_list)])
+        # hist_volatility = max([get_hist_volatility(PRICE_LS), get_hist_volatility(trailing_3mth_price_hist), get_hist_volatility(trailing_1mth_price_list)])
+        if volatility_period == "1Y":
+            hist_volatility = get_hist_volatility(PRICE_LS)
+        elif volatility_period == "3M":
+            hist_volatility = get_hist_volatility(trailing_3mth_price_hist)
+        elif volatility_period == "1M":
+            hist_volatility = get_hist_volatility(trailing_1mth_price_list)
 
         ## Comment-out original stockprice method due to incorrect actual price quotes (intraday)
         # stock_price = option_chain_response['underlyingPrice']
