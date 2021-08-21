@@ -603,10 +603,11 @@ def on_data_set_ticker_table(n_clicks, hist_data, page_current, page_size, sort_
             raise PreventUpdate
 
         # Ensuring options pass liquidity checks
-        high_call_strike_askbid = high_call_strike_ask/high_call_strike_bid
-        high_put_strike_askbid = high_put_strike_ask/high_put_strike_bid
-        low_call_strike_askbid = low_call_strike_ask/low_call_strike_bid
-        low_put_strike_askbid = low_put_strike_ask/low_put_strike_bid
+        prevent_zero_div = lambda x, y: 0 if (y == 0 or y == None) else x/y
+        high_call_strike_askbid = prevent_zero_div(high_call_strike_ask, high_call_strike_bid)
+        high_put_strike_askbid = prevent_zero_div(high_put_strike_ask, high_put_strike_bid)
+        low_call_strike_askbid = prevent_zero_div(low_call_strike_ask, low_call_strike_bid)
+        low_put_strike_askbid = prevent_zero_div(low_put_strike_ask, low_put_strike_bid)
 
         askbid_checklist = [high_call_strike_askbid, high_put_strike_askbid, low_call_strike_askbid, low_put_strike_askbid]
 
