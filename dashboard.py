@@ -38,11 +38,31 @@ PLOTLY_LOGO = "https://images.plot.ly/logo/new-branding/plotly-logomark.png"
 # ------------------------------------------------------------------------------
 
 # Define column names in Ticker Pandas Dataframe
-ticker_df_columns = {'Ticker Symbol':'ticker', '1Y Hist. Volatility (%)':'hist_volatility_1Y', '3M Hist. Volatility (%)':'hist_volatility_3m', '1M Hist. Volatility (%)':'hist_volatility_1m', 'Skew Category':'skew_category', 'Skew':'skew', 'Liquidity':'liquidity'}
+ticker_df_columns = {
+                    'Ticker':'ticker', 
+                    '1Y Hist. Vol (%)':'hist_volatility_1Y', 
+                    '3M Hist. Vol (%)':'hist_volatility_3m', 
+                    '1M Hist. Vol (%)':'hist_volatility_1m',
+                    'Skew Category':'skew_category', 
+                    'Skew':'skew', 
+                    'Liquidity':'liquidity'
+                    }
 
 # Define column names in Options Chain Pandas Dataframe
-df_columns = {'Ticker Symbol':'ticker', 'Expiration Date (Local)':'exp_date', 'Option Type':'option_type', 'Strike Price ($)':'strike_price', 'Days to Expiration':'exp_days', 'Delta':'delta','Premium ($)':'premium', 'Bid Size':'bid_size', 'Ask Size':'ask_size', 'ROI (%)':'roi'}
-# df_columns = ['Ticker Symbol', 'Expiration Date', 'Option Type', 'Strike Price ($)', 'Days to Expiration', 'Premium ($)', 'Bid Size', 'Ask Size', 'ROI (%)']
+df_columns = {
+                'Ticker':'ticker', 
+                'Exp. Date (Local)':'exp_date', 
+                'Option Type':'option_type', 
+                'Strike ($)':'strike_price', 
+                'Days to Exp':'exp_days', 
+                'Delta':'delta', 
+                'Open Interest':'open_interest', 
+                'Total Vol':'total_volume',
+                'Premium ($)':'premium', 
+                'Bid Size':'bid_size', 
+                'Ask Size':'ask_size', 
+                'ROI (%)':'roi'
+            }
 
 # ------------------------------------------------------------------------------
 # App layout
@@ -51,7 +71,6 @@ app.layout = html.Div([
 
     dcc.Store(id='storage-historical'),
 
-    # html.H1("TOS Options Wheel Dashboard", style={'text-align': 'center'}),
     dbc.Navbar(
         [
             html.A(
@@ -72,7 +91,6 @@ app.layout = html.Div([
     ),
     
     html.Div([
-
         # Dropdown field of available stock tickers based on description input 
         html.Div([
             dbc.Row([
@@ -91,7 +109,6 @@ app.layout = html.Div([
             ]),
             dcc.Dropdown(
                 id="memory-ticker",
-                # options=[{'label': f'{ticker[1]} (Symbol: {ticker[0]})', 'value': ticker[0]} for ticker in query_result],
                 placeholder="Enter a valid stock name.",
                 multi=True,
                 style={'width': "100%"} 
@@ -166,34 +183,6 @@ app.layout = html.Div([
         }
         ),
 
-        # html.Div([
-        #     html.H5("Day(s) to Expiration:"),
-        #     dcc.Slider(
-        #                 id='memory-expdays',
-        #                 min=1,
-        #                 max=100,
-        #                 value=14,
-        #                 # marks={i: '{}'.format(i) for i in range(100)},
-        #                 marks={
-        #                     10: {'label': '10'},
-        #                     20: {'label': '20'},
-        #                     30: {'label': '30'},
-        #                     40: {'label': '40'},
-        #                     50: {'label': '50'},
-        #                     60: {'label': '60'},
-        #                     70: {'label': '70'},
-        #                     80: {'label': '80'},
-        #                     90: {'label': '90'},
-        #                     100: {'label': '100'},
-        #                 },
-        #                 updatemode='drag'                
-        #             )
-        #     ],
-        #     style={
-        #         'padding': '10px 5px'
-        #     }
-        # ),
-
         html.Div([
                 dbc.Row(
                     [dbc.Col(
@@ -236,7 +225,7 @@ app.layout = html.Div([
                                             {"label": "90% Confidence", "value": 0.9}
                                         ],
                                         multi=False,
-                                        value=0.5
+                                        value=0.3
                                     )
                                 ],
                                 # style={'width': '30%', 'display': 'inline-block'}
@@ -337,11 +326,6 @@ app.layout = html.Div([
     html.Div([
         html.H5("Ticker Data \u2754", id='ticker_data'), # Source: https://unicode.org/emoji/charts/full-emoji-list.html
         dbc.Collapse(
-            # dbc.Card(dbc.CardBody('''
-            # Call skew is defined as the price of 10% OTM calls/10% OTM puts for the next monthly option expiry. 
-            # \nA call skew of 1.3 means the 10% OTM call is 1.3x the price of 10% OTM put.
-            # Potential Causes of Call Skew: \n\u2022 Unusual and extreme speculation of stocks. Eg: TSLA battery day \n\u2022 Stocks with limited downside but very high upside. Eg: Bankrupt stock trading at a fraction of book value, or SPACs near PIPE value \n\u2022 High demand/Low supply for calls, driving up call prices. \n\u2022 Low demand/High supply for puts, driving down put prices.
-            # ''')),
             
             dbc.Card(dbc.CardBody(dcc.Markdown('''
             Call skew is defined as the price of 10% OTM calls/10% OTM puts for the next monthly option expiry.  \n
@@ -398,15 +382,6 @@ app.layout = html.Div([
                     )
                 ])
             ),
-        # dbc.Tooltip(
-        #     '''
-        #     Call skew is defined as the price of 10% OTM calls/10% OTM puts for the next monthly option expiry. 
-        #     A call skew of 1.3 means the 10% OTM call is 1.3x the price of 10% OTM put.
-        #     Potential Causes of Call Skew: \n\u2022 Unusual and extreme speculation of stocks. Eg: TSLA battery day \n\u2022 Stocks with limited downside but very high upside. Eg: Bankrupt stock trading at a fraction of book value, or SPACs near PIPE value \n\u2022 High demand/Low supply for calls, driving up call prices. \n\u2022 Low demand/High supply for puts, driving down put prices.
-        #     ''',
-        #     target='ticker_data',
-        #     placement='top',
-        # ),
         ],
         style={
             'max-width': '1450px',
@@ -707,7 +682,9 @@ def on_data_set_table(n_clicks, hist_data, page_current, page_size, sort_by, tic
                     strike_price = strike[0]['strikePrice']
                     bid_size = strike[0]['bidSize']  
                     ask_size = strike[0]['askSize']  
-                    delta_val = strike[0]['delta']   
+                    delta_val = strike[0]['delta']
+                    total_volume = strike[0]['totalVolume']  
+                    open_interest= strike[0]['openInterest']  
 
                     # strike[0]['daysToExpiration'] can return negative numbers to mess up prob_cone calculations
                     # day_diff = strike[0]['daysToExpiration'] 
@@ -723,7 +700,7 @@ def on_data_set_table(n_clicks, hist_data, page_current, page_size, sort_by, tic
                     if day_diff <= expday_range:
                         if roi_val >= roi_selection and (abs(delta_val) <= delta_range):
                             if (option_type=='CALL' and strike_price >= upper_bound) or (option_type == "PUT" and strike_price <= lower_bound):
-                                option_chain_row = [ticker, expiry_date, option_type, strike_price, day_diff, delta_val, option_premium, bid_size, ask_size, roi_val]
+                                option_chain_row = [ticker, expiry_date, option_type, strike_price, day_diff, delta_val, open_interest, total_volume, option_premium, bid_size, ask_size, roi_val]
                                 if all(col != None for col in option_chain_row):
                                     insert.append(option_chain_row)
 
