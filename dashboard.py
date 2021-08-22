@@ -414,6 +414,14 @@ app.layout = html.Div([
                                     },
                                 'color': 'tomato',
                                 'fontWeight': 'bold'
+                            },
+                            {
+                                'if': {
+                                    'column_id': 'total_volume',
+                                    'filter_query': '{total_volume} > {open_interest}'
+                                    },
+                                'color': 'green',
+                                'fontWeight': 'bold'
                             }, 
                             {
                                 'if': {'row_index': 'odd'},
