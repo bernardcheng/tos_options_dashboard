@@ -18,7 +18,7 @@ import dash_bootstrap_components as dbc
 
 from src.tos_api_calls import tos_search, tos_get_quotes, tos_get_option_chain, tos_get_price_hist
 from src.gbm import prob_over, prob_under
-from src.stats import get_hist_volatility, prob_cone
+from src.stats import get_hist_volatility, prob_cone, get_prob
 
 # app = dash.Dash(__name__)
 app = dash.Dash(external_stylesheets=[dbc.themes.BOOTSTRAP])
@@ -55,7 +55,8 @@ df_columns = {
                 'Option Type':'option_type', 
                 'Strike ($)':'strike_price', 
                 'Days to Exp':'exp_days', 
-                'Delta':'delta', 
+                'Delta':'delta',
+                'Proabability (%)':'prob_val', 
                 'Open Interest':'open_interest', 
                 'Total Vol':'total_volume',
                 'Premium ($)':'premium', 
@@ -705,10 +706,13 @@ def on_data_set_table(n_clicks, hist_data, page_current, page_size, sort_by, tic
                     roi_val = round((option_premium/(strike_price*100)) *100,2)
 
                     lower_bound, upper_bound = prob_cone(PRICE_LS, stock_price, hist_volatility, day_diff, probability=confidence_lvl)
+
+                    prob_val = round(get_prob(stock_price, strike_price, hist_volatility, day_diff)*100,2)
+
                     if day_diff <= expday_range:
                         if roi_val >= roi_selection and (abs(delta_val) <= delta_range):
                             if (option_type=='CALL' and strike_price >= upper_bound) or (option_type == "PUT" and strike_price <= lower_bound):
-                                option_chain_row = [ticker, expiry_date, option_type, strike_price, day_diff, delta_val, open_interest, total_volume, option_premium, bid_size, ask_size, roi_val]
+                                option_chain_row = [ticker, expiry_date, option_type, strike_price, day_diff, delta_val, prob_val, open_interest, total_volume, option_premium, bid_size, ask_size, roi_val]
                                 if all(col != None for col in option_chain_row):
                                     insert.append(option_chain_row)
 

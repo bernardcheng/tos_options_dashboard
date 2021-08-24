@@ -25,6 +25,12 @@ def prob_cone(price_ls:list, stock_price:float, volatility:float, days_ahead:int
 
     return (lower_lound,upper_bound)
 
+def get_prob(stock_price:float, strike_price:float, volatility:float, days_ahead:int) -> float:
+
+    z_score = abs(stock_price - strike_price)/(stock_price * volatility * math.sqrt(days_ahead/252))
+
+    return 2 * st.norm.cdf(z_score) - 1
+
 # Calculates annualized historical volatility using log returns 
 def get_hist_volatility(price_ls:list) -> float:
 
