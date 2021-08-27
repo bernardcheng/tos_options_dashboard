@@ -71,7 +71,12 @@ df_columns = {
 app.layout = html.Div([
 
     dcc.Store(id='storage-historical'),
-
+    # dbc.NavbarSimple(
+    #     brand="TOS Options Wheel Dashboard",
+    #     brand_href="#",
+    #     color="dark",
+    #     dark=True,
+    # ),
     dbc.Navbar(
         [
             html.A(
@@ -707,7 +712,10 @@ def on_data_set_table(n_clicks, hist_data, page_current, page_size, sort_by, tic
 
                     lower_bound, upper_bound = prob_cone(PRICE_LS, stock_price, hist_volatility, day_diff, probability=confidence_lvl)
 
-                    prob_val = round(get_prob(stock_price, strike_price, hist_volatility, day_diff)*100,2)
+                    if day_diff > 0:
+                        prob_val = round(get_prob(stock_price, strike_price, hist_volatility, day_diff)*100,2)
+                    else:
+                        prob_val = 0.0
 
                     if day_diff <= expday_range:
                         if roi_val >= roi_selection and (abs(delta_val) <= delta_range):
