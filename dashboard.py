@@ -306,9 +306,9 @@ app.layout = html.Div([
         style={'width': '48%', 'display': 'inline-block'}
         ),
         html.Div([ 
-            dcc.Tabs(id='tabs_prob_chart', value='prob_tab_1', children=[
-                dcc.Tab(label='Historical Volatility', value='prob_tab_1', className='custom-tab'),
-                dcc.Tab(label='GBM Simulation', value='prob_tab_2', className='custom-tab'),
+            dcc.Tabs(id='tabs_prob_chart', value='prob_cone_tab', children=[
+                dcc.Tab(label='Historical Volatility', value='prob_cone_tab', className='custom-tab'),
+                dcc.Tab(label='GBM Simulation', value='gbm_sim_tab', className='custom-tab'),
             ]),
             dcc.Loading(
                 id="loading_prob_cone",
@@ -804,13 +804,8 @@ def on_data_set_graph2(hist_data, tab, ticker_ls, contract_type, expday_range, c
     if hist_data is None:
         raise PreventUpdate 
 
-    for ticker in ticker_ls: 
-        option_chain_response = tos_get_option_chain(ticker, contractType=contract_type, apiKey=API_KEY)  
-        hist_price = hist_data[ticker]
-
-        # Sanity check on API response data
-        if option_chain_response is None or list(option_chain_response.keys())[0] == "error":
-            raise PreventUpdate    
+    for ticker in ticker_ls:
+        hist_price = hist_data[ticker]   
 
         # Create and append a list of historical share prices of specified ticker
         PRICE_LS =[]
@@ -818,12 +813,9 @@ def on_data_set_graph2(hist_data, tab, ticker_ls, contract_type, expday_range, c
             PRICE_LS.append(candle['close'])
 
         hist_volatility = get_hist_volatility(PRICE_LS)
-
-        ## Comment-out original stockprice method due to incorrect actual price quotes (intraday)
-        # stock_price = option_chain_response['underlyingPrice']
         stock_price = tos_get_quotes(ticker, apiKey=API_KEY)[ticker]['lastPrice']
 
-        if tab == 'prob_tab_1': # Historical Volatlity
+        if tab == 'prob_cone_tab': # Historical Volatlity
 
             df_cols = ['Ticker Symbol', 'Day', 'Stock Price', 'Lower Bound', 'Upper Bound', 'Days to Expiry']
 
@@ -833,7 +825,7 @@ def on_data_set_graph2(hist_data, tab, ticker_ls, contract_type, expday_range, c
 
                 insert.append([ticker, (date.today() + timedelta(days=i_day)), stock_price, lower_bound, upper_bound, i_day])
 
-        elif tab == 'prob_tab_2': # GBM Simulation
+        elif tab == 'gbm_sim_tab': # GBM Simulation
 
             bin_size = 10
 
@@ -862,10 +854,9 @@ def on_data_set_graph2(hist_data, tab, ticker_ls, contract_type, expday_range, c
                 x_ls.append(price)
                 y_ls.append(round(prob_val*100,1))
 
-            # data.append(go.Bar(name=ticker, x=x_ls, y=y_ls))
             data.append(go.Scatter(x=x_ls, y=y_ls, name='Price Probability', mode='lines+markers', line_shape='spline'))    
 
-    if tab == 'prob_tab_1': # Historical Volatility
+    if tab == 'prob_cone_tab': # Historical Volatility
         df = pd.DataFrame(insert, columns=df_cols)
         # fig = go.Figure(
         #         data=[go.Candlestick(
@@ -900,7 +891,7 @@ def on_data_set_graph2(hist_data, tab, ticker_ls, contract_type, expday_range, c
             yaxis_title='Stock Price',
             plot_bgcolor='rgb(256,256,256)' # White Plot background
         )
-    elif tab == 'prob_tab_2': # GBM Simulation
+    elif tab == 'gbm_sim_tab': # GBM Simulation
         fig = go.Figure(data=data)
         fig.update_layout(
             title='Probability Distribution',
