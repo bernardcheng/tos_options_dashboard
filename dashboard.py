@@ -862,7 +862,8 @@ def on_data_set_graph2(hist_data, tab, ticker_ls, contract_type, expday_range, c
                 x_ls.append(price)
                 y_ls.append(round(prob_val*100,1))
 
-            data.append(go.Bar(name=ticker, x=x_ls, y=y_ls))    
+            # data.append(go.Bar(name=ticker, x=x_ls, y=y_ls))
+            data.append(go.Scatter(x=x_ls, y=y_ls, name='Price Probability', mode='lines+markers', line_shape='spline'))    
 
     if tab == 'prob_tab_1': # Historical Volatility
         df = pd.DataFrame(insert, columns=df_cols)
@@ -877,7 +878,7 @@ def on_data_set_graph2(hist_data, tab, ticker_ls, contract_type, expday_range, c
 
         fig = go.Figure()
         for ticker in ticker_ls: 
-            # Note: .squeeze() is to convert DAtaframe into Series format after df.loc()
+            # Note: .squeeze() is to convert Dataframe into Series format after df.loc()
             fig.add_trace(go.Scatter(
                         x=df['Day'], 
                         y=df.loc[df['Ticker Symbol']==ticker,['Upper Bound']].squeeze(),
