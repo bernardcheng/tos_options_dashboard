@@ -34,7 +34,7 @@ API_KEY = os.environ.get('TOS_API_KEY')
 # Data Table Properties
 PAGE_SIZE = 30
 
-PLOTLY_LOGO = "https://images.plot.ly/logo/new-branding/plotly-logomark.png"
+LOGO = "https://img.icons8.com/ios/250/FFFFFF/dashboard.png"
 # ------------------------------------------------------------------------------
 
 # Define column names in Ticker Pandas Dataframe
@@ -83,13 +83,13 @@ app.layout = html.Div([
                 # Use row and col to control vertical alignment of logo / brand
                 dbc.Row(
                     [
-                        dbc.Col(html.Img(src=PLOTLY_LOGO, height="30px")),
+                        # dbc.Col(html.Img(src=LOGO, height="30px")),
                         dbc.Col(dbc.NavbarBrand("TOS Options Wheel Dashboard", className="ml-2")),
                     ],
                     align="center",
                     no_gutters=True,
                 ),
-                href="https://plot.ly",
+                href="#",
             ),
         ],
         color="dark",

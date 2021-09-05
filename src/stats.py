@@ -11,11 +11,7 @@ def prob_cone(price_ls:list, stock_price:float, volatility:float, days_ahead:int
     z_score = st.norm.ppf(1-((1-probability)/2))
     # z_score = st.norm.ppf(1-(probability/2))
 
-    # log_price_array = np.log(np.array(price_ls))
-
     # z_score = st.norm.ppf(1-((1-probability)/2), log_price_array.mean(), log_price_array.std())
-
-    # z_score = st.lognorm.ppf(1-((1-probability)/2), np.log(np.array(price_ls)).std())
 
     # Source: https://www.biocrudetech.com/index.php?option=com_blankcomponent&view=default&Itemid=670
     std_dev = z_score * stock_price * volatility * math.sqrt(days_ahead/252)
@@ -27,22 +23,32 @@ def prob_cone(price_ls:list, stock_price:float, volatility:float, days_ahead:int
 
 def get_prob(stock_price:float, strike_price:float, volatility:float, days_ahead:int) -> float:
 
-    z_score = abs(stock_price - strike_price)/(stock_price * volatility * math.sqrt(days_ahead/252))
+    if None or 0 not in (stock_price, strike_price, volatility, days_ahead):        
 
-    return 2 * st.norm.cdf(z_score) - 1
+        z_score = abs(stock_price - strike_price)/(stock_price * volatility * math.sqrt(days_ahead/252))
+
+        return 2 * st.norm.cdf(z_score) - 1
+    else:
+        return 0
 
 # Calculates annualized historical volatility using log returns 
 def get_hist_volatility(price_ls:list) -> float:
 
-    # Source: https://goodcalculators.com/historical-volatility-calculator/ 
-    # Source: https://quantivity.wordpress.com/2011/02/21/why-log-returns/ 
+    if None not in (price_ls):
 
-    log_stock_returns = [math.log(price_ls[i+1]/price_ls[i]) for i in range(len(price_ls)-1)]
+        # Source: https://goodcalculators.com/historical-volatility-calculator/ 
+        # Source: https://quantivity.wordpress.com/2011/02/21/why-log-returns/ 
 
-    ave_log_return = sum(log_stock_returns)/len(log_stock_returns)
+        log_stock_returns = [math.log(price_ls[i+1]/price_ls[i]) for i in range(len(price_ls)-1)]
+
+        if len(log_stock_returns) != 0:
+            ave_log_return = sum(log_stock_returns)/len(log_stock_returns)
+        else:
+            ave_log_return = 0
+        
+        returns_diff = [(returns - ave_log_return)**2 for returns in log_stock_returns] 
+
+        return math.sqrt(252) * math.sqrt(sum(returns_diff)/(len(returns_diff)-1))
     
-    returns_diff = [(returns - ave_log_return)**2 for returns in log_stock_returns]
-
-    hist_volatility = math.sqrt(252) * math.sqrt(sum(returns_diff)/(len(returns_diff)-1))
-
-    return hist_volatility
+    else:
+        return 0
