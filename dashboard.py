@@ -330,8 +330,32 @@ app.layout = html.Div([
         style={'width': '48%', 'float': 'right', 'display': 'inline-block'}
         )
     ]),
-    # To-Do: Open Interst and Volume Collpase Chart (https://plotly.com/python/time-series/)
 
+    # To-Do: Open Interst and Volume Collpase Chart (https://plotly.com/python/time-series/)
+    html.Div([
+        html.H5("Open Interest/Volume \u2B07", id='open_ir_vol_data'),
+        dbc.Collapse(
+            dcc.Loading(
+                id="loading_open_ir_vol",
+                type="default",
+                children=html.Div([
+                    dcc.Graph(
+                        id='open_ir_vol', 
+                        figure={
+                            'layout':{'title': {'text':'Open Interest/Volume Plot'}}       
+                        },
+                        config={"displayModeBar": False, "scrollZoom": True}
+                    )
+                ])
+            )
+        )
+    ],
+        style={
+                'max-width': '1450px',
+                'padding': '10px 5px',
+                'margin': 'auto'
+            }
+    ),
 
     html.Div([
         html.H5("Ticker Data \u2754", id='ticker_data'), # Source: https://unicode.org/emoji/charts/full-emoji-list.html
