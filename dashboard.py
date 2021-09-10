@@ -17,6 +17,7 @@ from dash.exceptions import PreventUpdate
 import dash_bootstrap_components as dbc
 
 from src.tos_api_calls import tos_search, tos_get_quotes, tos_get_option_chain, tos_get_price_hist
+from src.tos_helper import create_pricelist
 from src.gbm import prob_over, prob_under
 from src.stats import get_hist_volatility, prob_cone, get_prob
 
@@ -527,9 +528,7 @@ def on_data_set_ticker_table(n_clicks, hist_data, page_current, page_size, sort_
             raise PreventUpdate 
 
         # Create and append a list of historical share prices of specified ticker
-        PRICE_LS =[]
-        for candle in hist_price['candles']:
-            PRICE_LS.append(candle['close'])
+        PRICE_LS = create_pricelist(hist_price)
 
         trailing_3mth_price_hist = PRICE_LS[-90:]
         trailing_1mth_price_list = PRICE_LS[-30:]
@@ -667,9 +666,7 @@ def on_data_set_table(n_clicks, hist_data, page_current, page_size, sort_by, tic
             raise PreventUpdate    
 
         # Create and append a list of historical share prices of specified ticker
-        PRICE_LS =[]
-        for candle in hist_price['candles']:
-            PRICE_LS.append(candle['close'])
+        PRICE_LS = create_pricelist(hist_price)
 
         trailing_3mth_price_hist = PRICE_LS[-90:]
         trailing_1mth_price_list = PRICE_LS[-30:]
@@ -808,9 +805,7 @@ def on_data_set_graph2(hist_data, tab, ticker_ls, contract_type, expday_range, c
         hist_price = hist_data[ticker]   
 
         # Create and append a list of historical share prices of specified ticker
-        PRICE_LS =[]
-        for candle in hist_price['candles']:
-            PRICE_LS.append(candle['close'])
+        PRICE_LS = create_pricelist(hist_price)
 
         hist_volatility = get_hist_volatility(PRICE_LS)
         stock_price = tos_get_quotes(ticker, apiKey=API_KEY)[ticker]['lastPrice']
