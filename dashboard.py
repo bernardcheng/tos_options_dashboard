@@ -72,6 +72,7 @@ df_columns = {
 app.layout = html.Div([
 
     dcc.Store(id='storage-historical'),
+    dcc.Store(id='storage-quotes'),
     # dbc.NavbarSimple(
     #     brand="TOS Options Wheel Dashboard",
     #     brand_href="#",
@@ -308,7 +309,7 @@ app.layout = html.Div([
         ),
         html.Div([ 
             dcc.Tabs(id='tabs_prob_chart', value='prob_cone_tab', children=[
-                dcc.Tab(label='Historical Volatility', value='prob_cone_tab', className='custom-tab'),
+                dcc.Tab(label='Historical Volatility', value='prob_cone_tab', className='custom-tab'), 
                 dcc.Tab(label='GBM Simulation', value='gbm_sim_tab', className='custom-tab'),
             ]),
             dcc.Loading(
@@ -329,6 +330,8 @@ app.layout = html.Div([
         style={'width': '48%', 'float': 'right', 'display': 'inline-block'}
         )
     ]),
+    # To-Do: Open Interst and Volume Collpase Chart (https://plotly.com/python/time-series/)
+
 
     html.Div([
         html.H5("Ticker Data \u2754", id='ticker_data'), # Source: https://unicode.org/emoji/charts/full-emoji-list.html
@@ -507,6 +510,22 @@ def get_historical_prices(n_clicks, ticker_ls):
 
     return json_data
 
+# Temporarily stores JSON data in the browser (generally safe to store up to 2MB of data)
+@app.callback(Output('storage-quotes', 'data'),
+            [Input('submit-button-state', 'n_clicks')],
+            [State('memory-ticker', 'value')])
+def get_historical_prices(n_clicks, ticker_ls):
+
+    if ticker_ls is None:
+        raise PreventUpdate 
+
+    ticker_query = ""
+
+    for ticker in ticker_ls:
+        ticker_query += ticker + ","          
+
+    return tos_get_quotes(ticker_query, apiKey=API_KEY)
+
 # Update Ticker Table from API Response call
 @app.callback(Output('ticker-data-table', 'data'),
               [Input('submit-button-state', 'n_clicks'), Input('storage-historical', 'data'), Input('ticker-data-table', "page_current"), Input('ticker-data-table', "page_size"), Input('ticker-data-table', "sort_by")],
@@ -647,9 +666,9 @@ def on_data_set_ticker_table(n_clicks, hist_data, page_current, page_size, sort_
 
 # Update Table based on stored JSON value from API Response call 
 @app.callback(Output('option-chain-table', 'data'),
-              [Input('submit-button-state', 'n_clicks'), Input('storage-historical', 'data'), Input('option-chain-table', "page_current"), Input('option-chain-table', "page_size"), Input('option-chain-table', "sort_by")],
+              [Input('submit-button-state', 'n_clicks'), Input('storage-historical', 'data'), Input('storage-quotes', 'data'), Input('option-chain-table', "page_current"), Input('option-chain-table', "page_size"), Input('option-chain-table', "sort_by")],
               [State('memory-ticker', 'value'), State('memory-contract-type','value'), State('memory-roi', 'value'), State('memory-delta', 'value'),  State('memory-expdays','value'), State('memory-confidence','value'), State('memory-vol-period','value')])
-def on_data_set_table(n_clicks, hist_data, page_current, page_size, sort_by, ticker_ls, contract_type, roi_selection, delta_range, expday_range, confidence_lvl, volatility_period):
+def on_data_set_table(n_clicks, hist_data, quotes_data, page_current, page_size, sort_by, ticker_ls, contract_type, roi_selection, delta_range, expday_range, confidence_lvl, volatility_period):
     
     # Define empty list to be accumulate into Pandas dataframe (Source: https://stackoverflow.com/questions/10715965/add-one-row-to-pandas-dataframe)
     insert = []
@@ -679,9 +698,7 @@ def on_data_set_table(n_clicks, hist_data, page_current, page_size, sort_by, tic
         elif volatility_period == "1M":
             hist_volatility = get_hist_volatility(trailing_1mth_price_list)
 
-        ## Comment-out original stockprice method due to incorrect actual price quotes (intraday)
-        # stock_price = option_chain_response['underlyingPrice']
-        stock_price = tos_get_quotes(ticker, apiKey=API_KEY)[ticker]['lastPrice']
+        stock_price = quotes_data[ticker]['lastPrice']
 
         # Process API response data from https://developer.tdameritrade.com/option-chains/apis/get/marketdata/chains into Dataframe
         for option_chain_type in ['call','put']:
@@ -790,9 +807,9 @@ def on_data_set_graph(hist_data, tab, ticker_ls):
 
 # Update Prob Cone Graph based on stored JSON value from API Response call 
 @app.callback(Output('prob_cone_chart', 'figure'),
-              [Input('storage-historical', 'data'), Input('tabs_prob_chart', 'value')],
+              [Input('storage-historical', 'data'), Input('storage-quotes', 'data'), Input('tabs_prob_chart', 'value')],
               [State('memory-ticker', 'value'), State('memory-contract-type','value'),  State('memory-expdays','value'), State('memory-confidence','value')])
-def on_data_set_graph2(hist_data, tab, ticker_ls, contract_type, expday_range, confidence_lvl):
+def on_data_set_graph2(hist_data, quotes_data, tab, ticker_ls, contract_type, expday_range, confidence_lvl):
     
     # Define empty list to be accumulate into Pandas dataframe (Source: https://stackoverflow.com/questions/10715965/add-one-row-to-pandas-dataframe)
     insert = []   
@@ -808,7 +825,7 @@ def on_data_set_graph2(hist_data, tab, ticker_ls, contract_type, expday_range, c
         PRICE_LS = create_pricelist(hist_price)
 
         hist_volatility = get_hist_volatility(PRICE_LS)
-        stock_price = tos_get_quotes(ticker, apiKey=API_KEY)[ticker]['lastPrice']
+        stock_price = quotes_data[ticker]['lastPrice']
 
         if tab == 'prob_cone_tab': # Historical Volatlity
 
