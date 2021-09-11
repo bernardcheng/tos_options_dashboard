@@ -73,19 +73,13 @@ app.layout = html.Div([
 
     dcc.Store(id='storage-historical'),
     dcc.Store(id='storage-quotes'),
-    # dbc.NavbarSimple(
-    #     brand="TOS Options Wheel Dashboard",
-    #     brand_href="#",
-    #     color="dark",
-    #     dark=True,
-    # ),
+    dcc.Store(id='storage-option-chain-all'),
     dbc.Navbar(
         [
             html.A(
                 # Use row and col to control vertical alignment of logo / brand
                 dbc.Row(
                     [
-                        # dbc.Col(html.Img(src=LOGO, height="30px")),
                         dbc.Col(dbc.NavbarBrand("TOS Options Wheel Dashboard", className="ml-2")),
                     ],
                     align="center",
@@ -333,28 +327,40 @@ app.layout = html.Div([
 
     # To-Do: Open Interst and Volume Collpase Chart (https://plotly.com/python/time-series/)
     html.Div([
-        html.H5("Open Interest/Volume \u2B07", id='open_ir_vol_data'),
-        dbc.Collapse(
-            dcc.Loading(
-                id="loading_open_ir_vol",
-                type="default",
-                children=html.Div([
-                    dcc.Graph(
-                        id='open_ir_vol', 
-                        figure={
-                            'layout':{'title': {'text':'Open Interest/Volume Plot'}}       
-                        },
-                        config={"displayModeBar": False, "scrollZoom": True}
-                    )
-                ])
+        # html.H5("Open Interest/Volume \u2B07", id='open_ir_vol_data'),
+        dcc.Loading(
+            id="loading_open_ir_vol",
+            type="default",
+            children=html.Div([
+                dcc.Graph(
+                    id='open_ir_vol', 
+                    figure={
+                        'layout':{'title': {'text':'Open Interest/Volume Plot'}}       
+                    },
+                    config={"displayModeBar": False, "scrollZoom": True}
+                )
+            ])
+        ),
+        dbc.Row([
+            dbc.Col(
+                dcc.Dropdown(
+                    id='option_type',
+                    options=[
+                            {"label": "Put", "value": 'PUT'},
+                            {"label": "Call", "value": 'CALL'}
+                        ],
+                    value='PUT'
+                ),
+            ),
+            dbc.Col(
+                dcc.Dropdown(
+                    id='option_exp_date',
+                    placeholder='Select Exp Date'
+                ),
             )
-        )
-    ],
-        style={
-                'max-width': '1450px',
-                'padding': '10px 5px',
-                'margin': 'auto'
-            }
+        ]),                
+    ], 
+    className="pretty_container",
     ),
 
     html.Div([
@@ -538,7 +544,7 @@ def get_historical_prices(n_clicks, ticker_ls):
 @app.callback(Output('storage-quotes', 'data'),
             [Input('submit-button-state', 'n_clicks')],
             [State('memory-ticker', 'value')])
-def get_historical_prices(n_clicks, ticker_ls):
+def get_price_quotes(n_clicks, ticker_ls):
 
     if ticker_ls is None:
         raise PreventUpdate 
@@ -550,11 +556,27 @@ def get_historical_prices(n_clicks, ticker_ls):
 
     return tos_get_quotes(ticker_query, apiKey=API_KEY)
 
+# Temporarily stores JSON data in the browser (generally safe to store up to 2MB of data)
+@app.callback(Output('storage-option-chain-all', 'data'),
+            [Input('submit-button-state', 'n_clicks')],
+            [State('memory-ticker', 'value')])
+def get_option_chain_all(n_clicks, ticker_ls):
+
+    if ticker_ls is None:
+        raise PreventUpdate 
+
+    json_data = {}
+
+    for ticker in ticker_ls:
+        json_data[ticker] = tos_get_option_chain(ticker, contractType='ALL', rangeType='ALL', apiKey=API_KEY)       
+
+    return json_data
+
 # Update Ticker Table from API Response call
 @app.callback(Output('ticker-data-table', 'data'),
-              [Input('submit-button-state', 'n_clicks'), Input('storage-historical', 'data'), Input('ticker-data-table', "page_current"), Input('ticker-data-table', "page_size"), Input('ticker-data-table', "sort_by")],
+              [Input('submit-button-state', 'n_clicks'), Input('storage-historical', 'data'), Input('storage-option-chain-all', 'data'), Input('ticker-data-table', "page_current"), Input('ticker-data-table', "page_size"), Input('ticker-data-table', "sort_by")],
               [State('memory-ticker', 'value')])
-def on_data_set_ticker_table(n_clicks, hist_data, page_current, page_size, sort_by, ticker_ls):
+def on_data_set_ticker_table(n_clicks, hist_data, optionchain_data, page_current, page_size, sort_by, ticker_ls):
     
     # Define empty list to be accumulate into Pandas dataframe (Source: https://stackoverflow.com/questions/10715965/add-one-row-to-pandas-dataframe)
     insert = []
@@ -562,8 +584,8 @@ def on_data_set_ticker_table(n_clicks, hist_data, page_current, page_size, sort_
     if ticker_ls is None:
         raise PreventUpdate 
 
-    for ticker in ticker_ls: 
-        option_chain_response = tos_get_option_chain(ticker, contractType='ALL', rangeType='ALL', apiKey=API_KEY)  
+    for ticker in ticker_ls:
+        option_chain_response = optionchain_data[ticker]  
         hist_price = hist_data[ticker]
 
         # Sanity check on API response data
@@ -786,7 +808,7 @@ def on_data_set_table(n_clicks, hist_data, quotes_data, page_current, page_size,
 @app.callback(Output('price_chart', 'figure'),
               [Input('storage-historical', 'data'), Input('tabs_price_chart', 'value')],
               [State('memory-ticker', 'value')])
-def on_data_set_graph(hist_data, tab, ticker_ls):
+def on_data_set_price_history(hist_data, tab, ticker_ls):
 
     # Create a Python dict in which a new item will be created upon search (if it doesn't exist before)
     # Source: https://stackoverflow.com/questions/5900578/how-does-collections-defaultdict-work
@@ -833,7 +855,7 @@ def on_data_set_graph(hist_data, tab, ticker_ls):
 @app.callback(Output('prob_cone_chart', 'figure'),
               [Input('storage-historical', 'data'), Input('storage-quotes', 'data'), Input('tabs_prob_chart', 'value')],
               [State('memory-ticker', 'value'), State('memory-contract-type','value'),  State('memory-expdays','value'), State('memory-confidence','value')])
-def on_data_set_graph2(hist_data, quotes_data, tab, ticker_ls, contract_type, expday_range, confidence_lvl):
+def on_data_set_prob_cone(hist_data, quotes_data, tab, ticker_ls, contract_type, expday_range, confidence_lvl):
     
     # Define empty list to be accumulate into Pandas dataframe (Source: https://stackoverflow.com/questions/10715965/add-one-row-to-pandas-dataframe)
     insert = []   
@@ -940,6 +962,35 @@ def on_data_set_graph2(hist_data, quotes_data, tab, ticker_ls, contract_type, ex
     fig.update_yaxes(showgrid=True, gridcolor='LightGrey')
 
     return fig
+
+# Update Open Interest/Volume Graph based on stored JSON value from API Response call (does not work with multiple tickers selected)
+@app.callback(Output('open_ir_vol', 'figure'),
+              [Input('storage-option-chain-all', 'data')],
+              [State('memory-ticker', 'value'), State('memory-expdays','value'),])
+def on_data_set_open_interest_vol(optionchain_data, ticker_ls, expday_range):
+    insert = []
+
+    for ticker in ticker_ls:
+        option_chain_response = optionchain_data[ticker]
+        for option_chain_type in ['call','put']:
+            for exp_date in option_chain_response[f'{option_chain_type}ExpDateMap'].values():
+                for strike in exp_date.values():
+
+                    expiry_date = datetime.fromtimestamp(strike[0]["expirationDate"]/1000.0)
+                    option_type = strike[0]['putCall']
+                    total_volume = strike[0]['totalVolume']  
+                    open_interest= strike[0]['openInterest']  
+
+                    current_date = datetime.now()
+                    day_diff = (expiry_date - current_date).days
+                    if day_diff < 0:
+                        continue
+
+                    if day_diff <= expday_range:
+                        option_chain_row = [ticker, expiry_date, option_type, day_diff, open_interest, total_volume]
+                        if all(col != None for col in option_chain_row):
+                            insert.append(option_chain_row)
+    pass
 
 
 if __name__ == '__main__':
