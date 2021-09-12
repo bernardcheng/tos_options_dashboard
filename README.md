@@ -10,6 +10,8 @@ Filter options include:
 * Delta Range: Represents current probability that the option contract will expire [in-the-money](https://www.investopedia.com/terms/i/inthemoney.asp) (i.e. Option is exercised)
 * Option Contract Type: Call/Put/All (both call and put options)
 * Days to expiration: No. of days till options contract is set to expire
+* Confidence Level: Represents the level of confidence in which the stock price is likely to be within the probability cone. A higher confidence level would result in a wider probability cone. 
+* Historical Volatility Period: Changes the width of the probability cone calculation based on past period historical volatility (Past month, past 3 months, past year). For example, historical volatility of 40% would result in a wider probability curve than that based on a historical volatility of 25%. 
 
 ## Pre-requisites:
 
@@ -70,13 +72,15 @@ Filter options include:
    * Return on Investment (ROI) Range: (Default: More than 1%)
    * Delta Range: (Default: Ignore Delta value)
    * Option Contract Type: Call/Put/All (Default: All)
-   * Day(s) to Expiration: 0-100 days (Default: 14 days)
+   * Day(s) to Expiration: 0-100 days (Default: 0-14 days)
+   * Confidence Level: (Default: 30% Confidence)
+   * Historical Volatility Level: (Default: 1 Month)
 
    To proceed with the search function, select on the **Submit** button.
 
    ![step3-search](/doc_img/step3-search.png)
 
-4. The corresponding historical price charts for the specified stock ticker is generated along with the associated cone of probability (Default: 70% confidence level).
+4. The corresponding historical price charts for the specified stock ticker is generated along with the associated cone of probability (Default: 30% confidence level).
 
    ![step4-results](/doc_img/step4-results.png)
 
