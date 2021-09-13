@@ -985,7 +985,7 @@ def on_data_set_open_interest_vol(optionchain_data, ticker_ls, expday_range, con
     for ticker in ticker_ls:
         exp_days_ls = df['Days to Expiry'].to_list()
 
-        if option_type == 'ALL':
+        if contract_type == 'ALL':
             fig.add_trace(go.Scatter(
                         x=df.loc[(df['Ticker Symbol']==ticker) & (df['Option Type']=='PUT') & (df['Days to Expiry']==max(exp_days_ls)),['Strike Price']].squeeze(), 
                         y=df.loc[(df['Ticker Symbol']==ticker) & (df['Option Type']=='PUT') & (df['Days to Expiry']==max(exp_days_ls)),['Total Volume']].squeeze(),

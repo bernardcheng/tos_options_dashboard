@@ -67,7 +67,9 @@ Filter options include:
 
 3. To start using the Dashboard, activate Ticker mode before entering the stock ticker of interest (e.g. AAPL for Apple Inc. stock).
 
-   There are several options characteristic filter options to choose from:
+   Alternatively, you can type 'Apple' without activating Ticker mode to search for a particular option underlying.
+
+   There are several options property filter options to choose from:
 
    * Return on Investment (ROI) Range: (Default: More than 1%)
    * Delta Range: (Default: Ignore Delta value)
@@ -84,9 +86,13 @@ Filter options include:
 
    ![step4-results](/doc_img/step4-results.png)
 
-5. The dashboard also measures the Call / Put skew of the specified ticker, as well as listing the option contracts that matches the filter requirements in Step 3.
+5. The open interest and volume of the options chain is generated. Note: The options chain with expiry date closest to the 'Day(s) to Expiration' field is used (i.e. if option 0-14 days is selected, the graph will show the option chain with number of expiry days closest to 14)
+
+   ![step5-results](/doc_img/step5-results.png)
+
+6. The dashboard also measures the Call / Put skew of the specified ticker, as well as listing the option contracts that matches the filter requirements in Step 3.
 
    * Put Skew: Defined as the price of 10% OTM puts/10% OTM calls for the next monthly option expiry
    * Call Skew: Defined as the price of 10% OTM calls/10% OTM puts for the next monthly option expiry.
 
-   ![step5-results](/doc_img/step5-results.png)
+   ![step6-results](/doc_img/step6-results.png)
