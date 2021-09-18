@@ -57,10 +57,11 @@ df_columns = {
                 'Strike ($)':'strike_price', 
                 'Days to Exp':'exp_days', 
                 'Delta':'delta',
-                'Proabability (%)':'prob_val', 
+                'Probability (%)':'prob_val', 
                 'Open Interest':'open_interest', 
                 'Total Vol':'total_volume',
                 'Premium ($)':'premium', 
+                'Leverage':'option_leverage',
                 'Bid Size':'bid_size', 
                 'Ask Size':'ask_size', 
                 'ROI (%)':'roi'
@@ -751,6 +752,11 @@ def on_data_set_table(n_clicks, hist_data, quotes_data, page_current, page_size,
 
                     option_premium = round(strike[0]['bid'] * strike[0]['multiplier'],2)
                     roi_val = round((option_premium/(strike_price*100)) *100,2)
+                    # Option leverage: https://www.reddit.com/r/thetagang/comments/pq1v2v/using_delta_to_calculate_an_options_leverage/
+                    if delta_val == 'NaN' or option_premium == 0:
+                        option_leverage = 0.0
+                    else:
+                        option_leverage = round((abs(float(delta_val))*stock_price)/option_premium,3)
 
                     lower_bound, upper_bound = prob_cone(PRICE_LS, stock_price, hist_volatility, day_diff, probability=confidence_lvl)
 
@@ -762,7 +768,7 @@ def on_data_set_table(n_clicks, hist_data, quotes_data, page_current, page_size,
                     if day_diff <= expday_range:
                         if roi_val >= roi_selection and (abs(delta_val) <= delta_range):
                             if (option_type=='CALL' and strike_price >= upper_bound) or (option_type == "PUT" and strike_price <= lower_bound):
-                                option_chain_row = [ticker, expiry_date, option_type, strike_price, day_diff, delta_val, prob_val, open_interest, total_volume, option_premium, bid_size, ask_size, roi_val]
+                                option_chain_row = [ticker, expiry_date, option_type, strike_price, day_diff, delta_val, prob_val, open_interest, total_volume, option_premium, option_leverage, bid_size, ask_size, roi_val]
                                 if all(col != None for col in option_chain_row):
                                     insert.append(option_chain_row)
 
