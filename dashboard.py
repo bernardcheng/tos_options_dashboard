@@ -198,7 +198,10 @@ app.layout = html.Div([
                                             {"label": "0 - 14 days", "value": 14},
                                             {"label": "0 - 21 days", "value": 21},
                                             {"label": "0 - 28 days", "value": 28},
-                                            {"label": "0 - 35 days", "value": 35}
+                                            {"label": "0 - 35 days", "value": 35},
+                                            {"label": "0 - 42 days", "value": 42},
+                                            {"label": "0 - 49 days", "value": 49},
+                                            {"label": "0 - 56 days", "value": 56}
                                         ],
                                         multi=False,
                                         value=14.00
