@@ -35,7 +35,6 @@ API_KEY = os.environ.get('TOS_API_KEY')
 # Data Table Properties
 PAGE_SIZE = 30
 
-LOGO = "https://img.icons8.com/ios/250/FFFFFF/dashboard.png"
 # ------------------------------------------------------------------------------
 
 # Define column names in Ticker Pandas Dataframe
@@ -329,14 +328,13 @@ app.layout = html.Div([
         )
     ]),
 
-    html.Div([
-        # html.H5("Open Interest/Volume \u2B07", id='open_ir_vol_data'),
+    html.Div([ 
         dcc.Dropdown(
-                id="memory_exp_day_graph",
-                placeholder="Enter the above fields first.",
-                multi=False,
-                style={'width': "100%"} 
-            ),
+            id="memory_exp_day_graph",
+            placeholder="Select expiration date after entering the above fields.",
+            multi=False,
+            style={'width': "100%", 'padding-bottom': '10px',} 
+        ),              
         dcc.Loading(
             id="loading_open_ir_vol",
             type="default",
@@ -727,6 +725,8 @@ def on_data_set_table(n_clicks, hist_data, quotes_data, page_current, page_size,
         trailing_3mth_price_hist = PRICE_LS[-90:]
         trailing_1mth_price_list = PRICE_LS[-30:]
 
+        current_date = datetime.now()
+
         # hist_volatility = max([get_hist_volatility(PRICE_LS), get_hist_volatility(trailing_3mth_price_hist), get_hist_volatility(trailing_1mth_price_list)])
         if volatility_period == "1Y":
             hist_volatility = get_hist_volatility(PRICE_LS)
@@ -752,8 +752,7 @@ def on_data_set_table(n_clicks, hist_data, quotes_data, page_current, page_size,
                     open_interest= strike[0]['openInterest']  
 
                     # strike[0]['daysToExpiration'] can return negative numbers to mess up prob_cone calculations
-                    # day_diff = strike[0]['daysToExpiration'] 
-                    current_date = datetime.now()
+                    # day_diff = strike[0]['daysToExpiration']                     
                     day_diff = (expiry_date - current_date).days
                     if day_diff < 0:
                         continue
@@ -988,7 +987,8 @@ def on_data_set_open_interest_vol(optionchain_data, ticker_ls, expday_range, con
 
     # For filtering open i/r graph base on expday options
     expday_options_ls = df['Days to Expiry'].unique()
-    expday_options = [{"label": date, "value": date} for date in list(expday_options_ls)]
+    expday_options = [{"label": f"Strike Date: {(datetime.now()+timedelta(days=days_to_exp.item())).date()} (Days to Expiry: {days_to_exp})", 
+                        "value": days_to_exp} for days_to_exp in list(expday_options_ls)]
 
     fig = go.Figure()
 
