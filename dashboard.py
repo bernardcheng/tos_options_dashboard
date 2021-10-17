@@ -1004,18 +1004,27 @@ def on_data_set_open_interest_vol(optionchain_data, ticker_ls, expday_range, con
             expday_select = expday_graph_selection
 
         # Note: .squeeze() is to convert Dataframe into Series format after df.loc()
-        fig.add_trace(go.Scatter(
-                    x=df.loc[(df['Ticker Symbol']==ticker) & (df['Option Type']==contract_type) & (df['Days to Expiry']==expday_select),['Strike Price']].squeeze(), 
-                    y=df.loc[(df['Ticker Symbol']==ticker) & (df['Option Type']==contract_type) & (df['Days to Expiry']==expday_select),['Total Volume']].squeeze(),
-                    mode='lines+markers',
-                    name=f'{ticker} - Total Volume',
-                    line_shape='spline')
-                )
-        fig.add_trace(go.Bar(
-                    x=df.loc[(df['Ticker Symbol']==ticker) & (df['Option Type']==contract_type) & (df['Days to Expiry']==expday_select),['Strike Price']].squeeze(),
-                    y=df.loc[(df['Ticker Symbol']==ticker) & (df['Option Type']==contract_type) & (df['Days to Expiry']==expday_select),['Open Interest']].squeeze(),
-                    name=f'{ticker} - Open Interest')
-                )    
+        # Colour options: https://developer.mozilla.org/en-US/docs/Web/CSS/color_value
+        for option_type in ('PUT','CALL'):
+            if option_type == 'PUT':
+                bar_color = 'indianred'
+            else:
+                bar_color = 'lightseagreen'
+            fig.add_trace(go.Scatter(
+                        x=df.loc[(df['Ticker Symbol']==ticker) & (df['Option Type']==option_type) & (df['Days to Expiry']==expday_select),['Strike Price']].squeeze(), 
+                        y=df.loc[(df['Ticker Symbol']==ticker) & (df['Option Type']==option_type) & (df['Days to Expiry']==expday_select),['Total Volume']].squeeze(),
+                        mode='lines+markers',
+                        name=f'{ticker} - Total {option_type} Volume',
+                        line_shape='spline',
+                        marker_color=bar_color)
+                        )
+            fig.add_trace(go.Bar(
+                        x=df.loc[(df['Ticker Symbol']==ticker) & (df['Option Type']==option_type) & (df['Days to Expiry']==expday_select),['Strike Price']].squeeze(),
+                        y=df.loc[(df['Ticker Symbol']==ticker) & (df['Option Type']==option_type) & (df['Days to Expiry']==expday_select),['Open Interest']].squeeze(),
+                        name=f'{ticker} - Open {option_type} Interest',
+                        marker_color=bar_color,
+                        opacity=0.5)
+                    )    
         fig.update_layout(
             title=f'Open Interest/Volume - {contract_type}',
             title_x=0.5, # Centre the title text
