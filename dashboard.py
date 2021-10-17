@@ -952,8 +952,8 @@ def on_data_set_prob_cone(hist_data, quotes_data, tab, ticker_ls, contract_type,
 # Update Open Interest/Volume Graph based on stored JSON value from API Response call (does not work with multiple tickers selected)
 @app.callback([Output('open_ir_vol', 'figure'),Output('memory_exp_day_graph', 'options')],
               [Input('storage-option-chain-all', 'data')],
-              [State('memory-ticker', 'value'), State('memory-expdays','value'), State('memory-contract-type','value'), State('memory_exp_day_graph','value')])
-def on_data_set_open_interest_vol(optionchain_data, ticker_ls, expday_range, contract_type, expday_graph_selection):
+              [State('memory-ticker', 'value'), State('memory-expdays','value'), State('memory_exp_day_graph','value')])
+def on_data_set_open_interest_vol(optionchain_data, ticker_ls, expday_range, expday_graph_selection):
     
     if optionchain_data is None:
         raise PreventUpdate
@@ -994,9 +994,6 @@ def on_data_set_open_interest_vol(optionchain_data, ticker_ls, expday_range, con
 
     for ticker in ticker_ls:
         exp_days_ls = df['Days to Expiry'].to_list()
-
-        if contract_type == 'ALL':
-            contract_type = 'PUT' #re-assign contract type variable
         
         if expday_graph_selection is None:
             expday_select = max(exp_days_ls)
@@ -1026,7 +1023,7 @@ def on_data_set_open_interest_vol(optionchain_data, ticker_ls, expday_range, con
                         opacity=0.5)
                     )    
         fig.update_layout(
-            title=f'Open Interest/Volume - {contract_type}',
+            title=f'Open Interest/Volume',
             title_x=0.5, # Centre the title text
             xaxis_title='Strike Price',
             yaxis_title='No. of Contracts',
