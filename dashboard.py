@@ -10,6 +10,8 @@ import plotly.graph_objects as go
 
 import dash  # (version 1.12.0) pip install dash
 import dash_table
+from dash_table.Format import Format
+from dash_table import FormatTemplate
 import dash_core_components as dcc
 import dash_html_components as html
 from dash.dependencies import Input, Output, State
@@ -37,34 +39,47 @@ PAGE_SIZE = 30
 
 # ------------------------------------------------------------------------------
 
+# Dash table value formatting
+money = FormatTemplate.money(0)
+percentage = FormatTemplate.percentage(2)
+
 # Define column names in Ticker Pandas Dataframe
-ticker_df_columns = {
-                    'Ticker':'ticker', 
-                    '1Y Hist. Vol (%)':'hist_volatility_1Y', 
-                    '3M Hist. Vol (%)':'hist_volatility_3m', 
-                    '1M Hist. Vol (%)':'hist_volatility_1m',
-                    'Skew Category':'skew_category', 
-                    'Skew':'skew', 
-                    'Liquidity':'liquidity'
-                    }
+# ticker_df_columns = {
+#                     'Ticker':'ticker', 
+#                     '1Y Hist. Vol (%)':'hist_volatility_1Y', 
+#                     '3M Hist. Vol (%)':'hist_volatility_3m', 
+#                     '1M Hist. Vol (%)':'hist_volatility_1m',
+#                     'Skew Category':'skew_category', 
+#                     'Skew':'skew', 
+#                     'Liquidity':'liquidity'
+#                     }
+ticker_df_columns=[
+    dict(id='ticker', name='Ticker'),
+    dict(id='hist_volatility_1Y', name='1Y Hist. Vol', type='numeric', format=percentage),
+    dict(id='hist_volatility_3m', name='3M Hist. Vol', type='numeric', format=percentage),
+    dict(id='hist_volatility_1m', name='1M Hist. Vol', type='numeric', format=percentage),
+    dict(id='skew_category', name='Skew Category'),
+    dict(id='skew', name='Skew'),
+    dict(id='liquidity', name='Liquidity'),
+]
 
 # Define column names in Options Chain Pandas Dataframe
-df_columns = {
-                'Ticker':'ticker', 
-                'Exp. Date (Local)':'exp_date', 
-                'Option Type':'option_type', 
-                'Strike ($)':'strike_price', 
-                'Days to Exp':'exp_days', 
-                'Delta':'delta',
-                'Probability (%)':'prob_val', 
-                'Open Interest':'open_interest', 
-                'Total Vol':'total_volume',
-                'Premium ($)':'premium', 
-                'Leverage':'option_leverage',
-                'Bid Size':'bid_size', 
-                'Ask Size':'ask_size', 
-                'ROI (%)':'roi'
-            }
+option_chain_df_columns=[
+    dict(id='ticker', name='Ticker'),
+    dict(id='exp_date', name='Exp. Date (Local)'),
+    dict(id='option_type', name='Option Type'),
+    dict(id='strike_price', name='Strike', type='numeric', format=money),
+    dict(id='exp_days', name='Exp. Days'),
+    dict(id='delta', name='Delta'),
+    dict(id='prob_val', name='Conf. Prob', type='numeric', format=percentage),
+    dict(id='open_interest', name='Open Int.', type='numeric', format=Format().group(True)),
+    dict(id='total_volume', name='Total Vol.', type='numeric', format=Format().group(True)),
+    dict(id='premium', name='Premium', type='numeric', format=money),
+    dict(id='option_leverage', name='Leverage'),
+    dict(id='bid_size', name='Bid Size', type='numeric', format=Format().group(True)),
+    dict(id='ask_size', name='Ask Size', type='numeric', format=Format().group(True)),
+    dict(id='roi', name='ROI')
+]
 
 # ------------------------------------------------------------------------------
 # App layout
@@ -382,7 +397,7 @@ app.layout = html.Div([
                 children=html.Div([
                     dash_table.DataTable(
                         id='ticker-data-table',
-                        columns=[{'name': col, 'id': ticker_df_columns[col]} for col in ticker_df_columns],
+                        columns=ticker_df_columns,
                         page_current=0,
                         page_size=PAGE_SIZE,
                         page_action='custom',
@@ -427,7 +442,7 @@ app.layout = html.Div([
                 children=html.Div([
                     dash_table.DataTable(
                         id='option-chain-table',
-                        columns=[{'name': col, 'id': df_columns[col]} for col in df_columns],
+                        columns=option_chain_df_columns,
                         page_current=0,
                         page_size=PAGE_SIZE,
                         page_action='custom',
@@ -587,9 +602,9 @@ def on_data_set_ticker_table(n_clicks, hist_data, optionchain_data, page_current
         trailing_3mth_price_hist = PRICE_LS[-90:]
         trailing_1mth_price_list = PRICE_LS[-30:]
 
-        hist_volatility_1Y = round(get_hist_volatility(PRICE_LS) * 100.0, 3)
-        hist_volatility_3m = round(get_hist_volatility(trailing_3mth_price_hist) * 100.0, 3)
-        hist_volatility_1m = round(get_hist_volatility(trailing_1mth_price_list) * 100.0, 3)
+        hist_volatility_1Y = get_hist_volatility(PRICE_LS)
+        hist_volatility_3m = get_hist_volatility(trailing_3mth_price_hist)
+        hist_volatility_1m = get_hist_volatility(trailing_1mth_price_list)
 
         stock_price = option_chain_response['underlyingPrice']
         stock_price_110percent = stock_price * 1.1
@@ -680,7 +695,7 @@ def on_data_set_ticker_table(n_clicks, hist_data, optionchain_data, page_current
         insert.append([ticker, hist_volatility_1Y, hist_volatility_3m, hist_volatility_1m, skew_category, skew, liquidity])
     
     # Create Empty Dataframe to be populated
-    df = pd.DataFrame(insert, columns=list(ticker_df_columns.values()))
+    df = pd.DataFrame(insert, columns=[column['id'] for column in ticker_df_columns])
 
     if len(sort_by):
         dff = df.sort_values(
@@ -758,7 +773,7 @@ def on_data_set_table(n_clicks, hist_data, quotes_data, page_current, page_size,
                         continue
 
                     option_premium = round(strike[0]['bid'] * strike[0]['multiplier'],2)
-                    roi_val = round((option_premium/(strike_price*100)) *100,2)
+                    roi_val = round(option_premium/(strike_price*100)*100,2)
                     # Option leverage: https://www.reddit.com/r/thetagang/comments/pq1v2v/using_delta_to_calculate_an_options_leverage/
                     if delta_val == 'NaN' or option_premium == 0:
                         option_leverage = 0.0
@@ -768,7 +783,7 @@ def on_data_set_table(n_clicks, hist_data, quotes_data, page_current, page_size,
                     lower_bound, upper_bound = prob_cone(PRICE_LS, stock_price, hist_volatility, day_diff, probability=confidence_lvl)
 
                     if day_diff > 0:
-                        prob_val = round(get_prob(stock_price, strike_price, hist_volatility, day_diff)*100,2)
+                        prob_val = get_prob(stock_price, strike_price, hist_volatility, day_diff)
                     else:
                         prob_val = 0.0
 
@@ -780,7 +795,7 @@ def on_data_set_table(n_clicks, hist_data, quotes_data, page_current, page_size,
                                     insert.append(option_chain_row)
 
     # Create Empty Dataframe to be populated
-    df = pd.DataFrame(insert, columns=list(df_columns.values()))
+    df = pd.DataFrame(insert, columns=[column['id'] for column in option_chain_df_columns])
 
     if len(sort_by):
         dff = df.sort_values(
