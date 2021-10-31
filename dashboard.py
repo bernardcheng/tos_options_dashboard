@@ -10,7 +10,7 @@ import plotly.graph_objects as go
 
 import dash  # (version 1.12.0) pip install dash
 import dash_table
-from dash_table.Format import Format
+from dash_table.Format import Format, Scheme
 from dash_table import FormatTemplate
 import dash_core_components as dcc
 import dash_html_components as html
@@ -44,15 +44,6 @@ money = FormatTemplate.money(0)
 percentage = FormatTemplate.percentage(2)
 
 # Define column names in Ticker Pandas Dataframe
-# ticker_df_columns = {
-#                     'Ticker':'ticker', 
-#                     '1Y Hist. Vol (%)':'hist_volatility_1Y', 
-#                     '3M Hist. Vol (%)':'hist_volatility_3m', 
-#                     '1M Hist. Vol (%)':'hist_volatility_1m',
-#                     'Skew Category':'skew_category', 
-#                     'Skew':'skew', 
-#                     'Liquidity':'liquidity'
-#                     }
 ticker_df_columns=[
     dict(id='ticker', name='Ticker'),
     dict(id='hist_volatility_1Y', name='1Y Hist. Vol', type='numeric', format=percentage),
@@ -78,7 +69,7 @@ option_chain_df_columns=[
     dict(id='option_leverage', name='Leverage'),
     dict(id='bid_size', name='Bid Size', type='numeric', format=Format().group(True)),
     dict(id='ask_size', name='Ask Size', type='numeric', format=Format().group(True)),
-    dict(id='roi', name='ROI')
+    dict(id='roi_val', name='ROI')
 ]
 
 # ------------------------------------------------------------------------------
@@ -771,9 +762,12 @@ def on_data_set_table(n_clicks, hist_data, quotes_data, page_current, page_size,
                     day_diff = (expiry_date - current_date).days
                     if day_diff < 0:
                         continue
+                    elif day_diff > expday_range:
+                        break
 
                     option_premium = round(strike[0]['bid'] * strike[0]['multiplier'],2)
                     roi_val = round(option_premium/(strike_price*100)*100,2)
+
                     # Option leverage: https://www.reddit.com/r/thetagang/comments/pq1v2v/using_delta_to_calculate_an_options_leverage/
                     if delta_val == 'NaN' or option_premium == 0:
                         option_leverage = 0.0
@@ -787,12 +781,15 @@ def on_data_set_table(n_clicks, hist_data, quotes_data, page_current, page_size,
                     else:
                         prob_val = 0.0
 
-                    if day_diff <= expday_range:
-                        if roi_val >= roi_selection and (abs(delta_val) <= delta_range):
-                            if (option_type=='CALL' and strike_price >= upper_bound) or (option_type == "PUT" and strike_price <= lower_bound):
-                                option_chain_row = [ticker, expiry_date, option_type, strike_price, day_diff, delta_val, prob_val, open_interest, total_volume, option_premium, option_leverage, bid_size, ask_size, roi_val]
-                                if all(col != None for col in option_chain_row):
-                                    insert.append(option_chain_row)
+                    if roi_val >= roi_selection and (abs(delta_val) <= delta_range):
+                        if (option_type=='CALL' and strike_price >= upper_bound) or (option_type == "PUT" and strike_price <= lower_bound):
+                            option_chain_row = [ticker, expiry_date, option_type, strike_price, day_diff, delta_val, prob_val, open_interest, total_volume, option_premium, option_leverage, bid_size, ask_size, roi_val]
+                            if all(col != None for col in option_chain_row):
+                                insert.append(option_chain_row)
+                        else:
+                            continue
+                    else:
+                        continue
 
     # Create Empty Dataframe to be populated
     df = pd.DataFrame(insert, columns=[column['id'] for column in option_chain_df_columns])
