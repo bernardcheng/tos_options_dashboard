@@ -41,6 +41,7 @@ PAGE_SIZE = 30
 
 # Dash table value formatting
 money = FormatTemplate.money(0)
+money_full=FormatTemplate.money(2)
 percentage = FormatTemplate.percentage(2)
 
 # Define column names in Ticker Pandas Dataframe
@@ -59,7 +60,7 @@ option_chain_df_columns=[
     dict(id='ticker', name='Ticker'),
     dict(id='exp_date', name='Exp. Date (Local)'),
     dict(id='option_type', name='Option Type'),
-    dict(id='strike_price', name='Strike', type='numeric', format=money),
+    dict(id='strike_price', name='Strike', type='numeric', format=money_full),
     dict(id='exp_days', name='Exp. Days'),
     dict(id='delta', name='Delta'),
     dict(id='prob_val', name='Conf. Prob', type='numeric', format=percentage),
