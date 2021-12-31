@@ -50,6 +50,7 @@ ticker_df_columns=[
     dict(id='hist_volatility_1Y', name='1Y Hist. Vol', type='numeric', format=percentage),
     dict(id='hist_volatility_3m', name='3M Hist. Vol', type='numeric', format=percentage),
     dict(id='hist_volatility_1m', name='1M Hist. Vol', type='numeric', format=percentage),
+    dict(id='hist_volatility_2w', name='2w Hist. Vol', type='numeric', format=percentage),
     dict(id='skew_category', name='Skew Category'),
     dict(id='skew', name='Skew'),
     dict(id='liquidity', name='Liquidity'),
@@ -249,6 +250,7 @@ app.layout = html.Div([
                                 dcc.Dropdown(
                                         id="memory-vol-period",
                                         options=[
+                                            {"label": "2 Weeks", "value": "2W"},
                                             {"label": "1 Month", "value": "1M"},
                                             {"label": "3 Months", "value": "3M"},                                           
                                             {"label": "1 Year", "value": "1Y"}
@@ -592,11 +594,13 @@ def on_data_set_ticker_table(n_clicks, hist_data, optionchain_data, page_current
         PRICE_LS = create_pricelist(hist_price)
 
         trailing_3mth_price_hist = PRICE_LS[-90:]
-        trailing_1mth_price_list = PRICE_LS[-30:]
+        trailing_1mth_price_hist = PRICE_LS[-30:]
+        trailing_2wks_price_hist = PRICE_LS[-14:]
 
         hist_volatility_1Y = get_hist_volatility(PRICE_LS)
         hist_volatility_3m = get_hist_volatility(trailing_3mth_price_hist)
-        hist_volatility_1m = get_hist_volatility(trailing_1mth_price_list)
+        hist_volatility_1m = get_hist_volatility(trailing_1mth_price_hist)
+        hist_volatility_2w = get_hist_volatility(trailing_2wks_price_hist)
 
         stock_price = option_chain_response['underlyingPrice']
         stock_price_110percent = stock_price * 1.1
@@ -684,7 +688,7 @@ def on_data_set_ticker_table(n_clicks, hist_data, optionchain_data, page_current
             skew_category = 'Call Skew'
             skew = round(call_110percent_price/put_90percent_price,3)
 
-        insert.append([ticker, hist_volatility_1Y, hist_volatility_3m, hist_volatility_1m, skew_category, skew, liquidity])
+        insert.append([ticker, hist_volatility_1Y, hist_volatility_3m, hist_volatility_1m, hist_volatility_2w, skew_category, skew, liquidity])
     
     # Create Empty Dataframe to be populated
     df = pd.DataFrame(insert, columns=[column['id'] for column in ticker_df_columns])
@@ -730,7 +734,8 @@ def on_data_set_table(n_clicks, hist_data, quotes_data, page_current, page_size,
         PRICE_LS = create_pricelist(hist_price)
 
         trailing_3mth_price_hist = PRICE_LS[-90:]
-        trailing_1mth_price_list = PRICE_LS[-30:]
+        trailing_1mth_price_hist = PRICE_LS[-30:]
+        trailing_2wk_price_hist = PRICE_LS[-14:]
 
         current_date = datetime.now()
 
@@ -740,7 +745,9 @@ def on_data_set_table(n_clicks, hist_data, quotes_data, page_current, page_size,
         elif volatility_period == "3M":
             hist_volatility = get_hist_volatility(trailing_3mth_price_hist)
         elif volatility_period == "1M":
-            hist_volatility = get_hist_volatility(trailing_1mth_price_list)
+            hist_volatility = get_hist_volatility(trailing_1mth_price_hist)
+        elif volatility_period == "2W":
+            hist_volatility = get_hist_volatility(trailing_2wk_price_hist)
 
         stock_price = quotes_data[ticker]['lastPrice']
 
