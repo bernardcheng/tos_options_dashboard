@@ -710,7 +710,7 @@ def on_data_set_ticker_table(n_clicks, hist_data, optionchain_data, page_current
         page_current*page_size:(page_current+ 1)*page_size
     ].to_dict('records')
 
-# Update Table based on stored JSON value from API Response call 
+# Update Option Chain Table based on stored JSON value from API Response call 
 @app.callback(Output('option-chain-table', 'data'),
               [Input('submit-button-state', 'n_clicks'), Input('storage-historical', 'data'), Input('storage-quotes', 'data'), Input('option-chain-table', "page_current"), Input('option-chain-table', "page_size"), Input('option-chain-table', "sort_by")],
               [State('memory-ticker', 'value'), State('memory-contract-type','value'), State('memory-roi', 'value'), State('memory-delta', 'value'),  State('memory-expdays','value'), State('memory-confidence','value'), State('memory-vol-period','value')])
@@ -868,13 +868,14 @@ def on_data_set_price_history(hist_data, tab, ticker_ls):
 
 # Update Prob Cone Graph based on stored JSON value from API Response call 
 @app.callback(Output('prob_cone_chart', 'figure'),
-              [Input('storage-historical', 'data'), Input('storage-quotes', 'data'), Input('tabs_prob_chart', 'value')],
-              [State('memory-ticker', 'value'), State('memory-contract-type','value'),  State('memory-expdays','value'), State('memory-confidence','value')])
-def on_data_set_prob_cone(hist_data, quotes_data, tab, ticker_ls, contract_type, expday_range, confidence_lvl):
+              [Input('storage-option-chain-all', 'data'), Input('storage-historical', 'data'), Input('storage-quotes', 'data'), Input('tabs_prob_chart', 'value')],
+              [State('memory-ticker', 'value'), State('memory-expdays','value'), State('memory-confidence','value')])
+def on_data_set_prob_cone(optionchain_data, hist_data, quotes_data, tab, ticker_ls, expday_range, confidence_lvl):
     
     # Define empty list to be accumulate into Pandas dataframe (Source: https://stackoverflow.com/questions/10715965/add-one-row-to-pandas-dataframe)
     insert = []   
-    data = [] 
+    data = []
+    mkt_pressure = []
 
     if hist_data is None or quotes_data is None:
         raise PreventUpdate 
@@ -888,6 +889,35 @@ def on_data_set_prob_cone(hist_data, quotes_data, tab, ticker_ls, contract_type,
         hist_volatility = get_hist_volatility(PRICE_LS)
         stock_price = quotes_data[ticker]['lastPrice']
 
+        current_date = datetime.now()
+        option_chain_response = optionchain_data[ticker]
+        for option_chain_type in ['call','put']:
+            for exp_date in option_chain_response[f'{option_chain_type}ExpDateMap'].values():
+
+                for strike in exp_date.values():
+
+                    expiry_date = datetime.fromtimestamp(strike[0]["expirationDate"]/1000.0)
+                    strike_price = strike[0]['strikePrice']
+                    option_type = strike[0]['putCall']
+                    total_volume = strike[0]['totalVolume']  
+                    open_interest= strike[0]['openInterest']  
+                    
+                    day_diff = (expiry_date - current_date).days
+                    if day_diff < 0:
+                        continue
+
+                    day = date.today() + timedelta(days=day_diff)
+
+                    if day_diff <= expday_range:
+                        option_chain_row = [ticker, expiry_date, option_type, day_diff, day, strike_price, open_interest, total_volume]
+                        if all(col != None for col in option_chain_row):
+                            mkt_pressure.append(option_chain_row)
+        
+        mkt_pressure_df_cols = ['Ticker Symbol', 'Expiry Date', 'Option Type', 'Days to Expiry', 'Day', 'Strike', 'Open Interest', 'Total Volume']
+        mkt_pressure_df = pd.DataFrame(mkt_pressure, columns=mkt_pressure_df_cols)
+        mkt_pressure_df['StrikeOpenInterest'] = mkt_pressure_df['Strike'] * mkt_pressure_df['Open Interest']
+        mkt_pressure_df['StrikeTotalVolume'] = mkt_pressure_df['Strike'] * mkt_pressure_df['Total Volume']
+
         if tab == 'prob_cone_tab': # Historical Volatlity            
 
             for i_day in range(expday_range + 1):
@@ -896,6 +926,11 @@ def on_data_set_prob_cone(hist_data, quotes_data, tab, ticker_ls, contract_type,
 
                 insert.append([ticker, (date.today() + timedelta(days=i_day)), stock_price, lower_bound, upper_bound, i_day])
 
+            agg_mkt_pressure_df = mkt_pressure_df.groupby('Day').sum()
+            agg_mkt_pressure_df = agg_mkt_pressure_df.reset_index()
+            agg_mkt_pressure_df['MktPressOpenInterest'] = agg_mkt_pressure_df['StrikeOpenInterest']/agg_mkt_pressure_df['Open Interest']
+            agg_mkt_pressure_df['MktPressTotalVolume'] = agg_mkt_pressure_df['StrikeTotalVolume']/agg_mkt_pressure_df['Total Volume']
+        
         elif tab == 'gbm_sim_tab': # GBM Simulation
 
             bin_size = 10
@@ -946,6 +981,20 @@ def on_data_set_prob_cone(hist_data, quotes_data, tab, ticker_ls, contract_type,
                         y=df.loc[df['Ticker Symbol']==ticker,['Lower Bound']].squeeze(),
                         mode='lines+markers',
                         name=f'{ticker} - Lower Bound',
+                        line_shape='spline')
+                    )
+            fig.add_trace(go.Scatter(
+                        x=agg_mkt_pressure_df['Day'].squeeze(), 
+                        y=agg_mkt_pressure_df['MktPressOpenInterest'].squeeze(),
+                        mode='lines+markers',
+                        name=f'{ticker} - Market Pressure (Open Interest)',
+                        line_shape='spline')
+                    )
+            fig.add_trace(go.Scatter(
+                        x=agg_mkt_pressure_df['Day'].squeeze(), 
+                        y=agg_mkt_pressure_df['MktPressTotalVolume'].squeeze(),
+                        mode='lines+markers',
+                        name=f'{ticker} - Market Pressure (Total Volume)',
                         line_shape='spline')
                     )
 
