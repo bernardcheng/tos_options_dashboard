@@ -89,7 +89,7 @@ app_layout = html.Div([
             dcc.Dropdown(
                 id="memory-ticker",
                 placeholder="Enter a valid stock name.",
-                multi=True,
+                multi=False,
                 style={'width': "100%"} 
             ),
         ],
