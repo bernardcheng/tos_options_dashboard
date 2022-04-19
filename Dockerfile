@@ -6,8 +6,9 @@ WORKDIR /dashboard_app
 
 # Copy over required files into working directory (src, requirements.txt, assets)
 COPY requirements.txt requirements.txt
-COPY src /dashboard_app/src
+COPY lib /dashboard_app/lib
 COPY assets /dashboard_app/assets
+COPY dashboard_app /dashboard_app/dashboard_app
 
 # Add the main dashboard script and config file to working directory of Docker Image
 ADD dashboard.py .
