@@ -591,12 +591,9 @@ def register_callbacks(app, API_KEY):
         
         if optionchain_data is None:
             raise PreventUpdate
-        
-        insert = []
-        current_date = datetime.now()
 
         optionchain_df = pd.read_json(optionchain_data, orient='split')
-        df = optionchain_df.filter(['Ticker', 'Exp. Date (Local)', 'Option Type', 'Exp. Days', 'Strike', 'Open Int.', 'Total Vol.'])
+        df = optionchain_df.filter(['Ticker', 'Exp. Date (Local)', 'Type', 'Exp. Days', 'Strike', 'Open Int.', 'Total Vol.'])
 
         # For filtering open i/r graph base on expday options
         expday_options_ls = df['Exp. Days'].unique()
@@ -620,16 +617,16 @@ def register_callbacks(app, API_KEY):
             else:
                 bar_color = 'lightseagreen'
             fig.add_trace(go.Scatter(
-                        x=df.loc[(df['Option Type']==option_type) & (df['Exp. Days']==expday_select),['Strike']].squeeze(), 
-                        y=df.loc[(df['Option Type']==option_type) & (df['Exp. Days']==expday_select),['Total Vol.']].squeeze(),
+                        x=df.loc[(df['Type']==option_type) & (df['Exp. Days']==expday_select),['Strike']].squeeze(), 
+                        y=df.loc[(df['Type']==option_type) & (df['Exp. Days']==expday_select),['Total Vol.']].squeeze(),
                         mode='lines+markers',
                         name=f'{ticker} - Total {option_type} Volume',
                         line_shape='spline',
                         marker_color=bar_color)
                         )
             fig.add_trace(go.Bar(
-                        x=df.loc[(df['Ticker']==ticker) & (df['Option Type']==option_type) & (df['Exp. Days']==expday_select),['Strike']].squeeze(),
-                        y=df.loc[(df['Ticker']==ticker) & (df['Option Type']==option_type) & (df['Exp. Days']==expday_select),['Open Int.']].squeeze(),
+                        x=df.loc[(df['Type']==option_type) & (df['Exp. Days']==expday_select),['Strike']].squeeze(),
+                        y=df.loc[(df['Type']==option_type) & (df['Exp. Days']==expday_select),['Open Int.']].squeeze(),
                         name=f'{ticker} - Open {option_type} Interest',
                         marker_color=bar_color,
                         opacity=0.5)
