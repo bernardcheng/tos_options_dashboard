@@ -63,8 +63,7 @@ def register_callbacks(app, API_KEY):
             raise PreventUpdate 
 
         json_data = {}
-
-        json_data[ticker] = tos_get_price_hist(ticker, apiKey=API_KEY)  
+        json_data[ticker] = tos_get_price_hist(ticker, apiKey=API_KEY)
 
         return json_data
 
@@ -75,27 +74,90 @@ def register_callbacks(app, API_KEY):
     def get_price_quotes(n_clicks, ticker):
 
         if ticker is None:
-            raise PreventUpdate 
+            raise PreventUpdate          
 
-        ticker_query = ""        
-        ticker_query += ticker + ","          
-
-        return tos_get_quotes(ticker_query, apiKey=API_KEY)
+        return tos_get_quotes(ticker, apiKey=API_KEY)
 
     # Temporarily stores JSON data in the browser (generally safe to store up to 2MB of data)
     @app.callback(Output('storage-option-chain-all', 'data'),
-                [Input('submit-button-state', 'n_clicks')],
-                [State('memory-ticker', 'value')])
-    def get_option_chain_all(n_clicks, ticker):
+                [Input('submit-button-state', 'n_clicks'), Input('storage-historical', 'data'), Input('storage-quotes', 'data')],
+                [State('memory-ticker', 'value'), State('memory-expdays','value'), State('memory-vol-period','value'), State('memory-confidence','value')])
+    def get_option_chain_all(n_clicks, hist_data, quotes_data, ticker, expday_range, volatility_period, confidence_lvl):
 
         if ticker is None:
             raise PreventUpdate 
 
-        json_data = {}
+        json_data = tos_get_option_chain(ticker, contractType='ALL', rangeType='ALL', apiKey=API_KEY)
 
-        json_data[ticker] = tos_get_option_chain(ticker, contractType='ALL', rangeType='ALL', apiKey=API_KEY)       
+        insert = []
+        current_date = datetime.now()
+        hist_price = hist_data[ticker]
 
-        return json_data
+        # Create and append a list of historical share prices of specified ticker
+        PRICE_LS = create_pricelist(hist_price)
+
+        trailing_3mth_price_hist = PRICE_LS[-90:]
+        trailing_1mth_price_hist = PRICE_LS[-30:]
+        trailing_2wk_price_hist = PRICE_LS[-14:]
+
+        current_date = datetime.now()
+        
+        if volatility_period == "1Y":
+            hist_volatility = get_hist_volatility(PRICE_LS)
+        elif volatility_period == "3M":
+            hist_volatility = get_hist_volatility(trailing_3mth_price_hist)
+        elif volatility_period == "1M":
+            hist_volatility = get_hist_volatility(trailing_1mth_price_hist)
+        elif volatility_period == "2W":
+            hist_volatility = get_hist_volatility(trailing_2wk_price_hist)
+
+        stock_price = quotes_data[ticker]['lastPrice']
+
+        # Process API response data from https://developer.tdameritrade.com/option-chains/apis/get/marketdata/chains into Dataframe
+        for option_chain_type in ['call','put']:
+            for exp_date in json_data[f'{option_chain_type}ExpDateMap'].values():
+                for strike in exp_date.values():
+
+                    expiry_date = datetime.fromtimestamp(strike[0]["expirationDate"]/1000.0)
+                    option_type = strike[0]['putCall']
+                    strike_price = strike[0]['strikePrice']
+                    bid_size = strike[0]['bidSize']  
+                    ask_size = strike[0]['askSize']  
+                    delta_val = strike[0]['delta']
+                    total_volume = strike[0]['totalVolume']  
+                    open_interest= strike[0]['openInterest']  
+
+                    # strike[0]['daysToExpiration'] can return negative numbers to mess up prob_cone calculations
+                    # day_diff = strike[0]['daysToExpiration']                     
+                    day_diff = (expiry_date - current_date).days
+                    if day_diff < 0:
+                        continue
+                    elif day_diff > expday_range:
+                        break
+
+                    option_premium = round(strike[0]['bid'] * strike[0]['multiplier'],2)
+                    roi_val = round(option_premium/(strike_price*100)*100,2)
+
+                    # Option leverage: https://www.reddit.com/r/thetagang/comments/pq1v2v/using_delta_to_calculate_an_options_leverage/
+                    if delta_val == 'NaN' or option_premium == 0:
+                        option_leverage = 0.0
+                    else:
+                        option_leverage = round((abs(float(delta_val))*stock_price)/option_premium,3)
+
+                    if day_diff > 0:
+                        prob_val = get_prob(stock_price, strike_price, hist_volatility, day_diff)
+                    else:
+                        prob_val = 0.0
+
+                    lower_bound, upper_bound = prob_cone(PRICE_LS, stock_price, hist_volatility, day_diff, probability=confidence_lvl)
+
+                    option_chain_row = [ticker, expiry_date, option_type, strike_price, day_diff, delta_val, prob_val, open_interest, total_volume, option_premium, option_leverage, bid_size, ask_size, roi_val]
+                    insert.append(option_chain_row)
+
+        # Create Empty Dataframe to be populated
+        df = pd.DataFrame(insert, columns=[column['name'] for column in option_chain_df_columns])   
+
+        return df.to_json(orient='split')
 
     # Update Ticker Table from API Response call
     @app.callback(Output('ticker-data-table', 'data'),
@@ -109,7 +171,7 @@ def register_callbacks(app, API_KEY):
         if ticker is None:
             raise PreventUpdate 
 
-        option_chain_response = optionchain_data[ticker]  
+        option_chain_response = tos_get_option_chain(ticker, contractType='ALL', rangeType='ALL', apiKey=API_KEY) 
         hist_price = hist_data[ticker]
 
         # Sanity check on API response data
@@ -238,15 +300,21 @@ def register_callbacks(app, API_KEY):
 
     # Update Option Chain Table based on stored JSON value from API Response call 
     @app.callback(Output('option-chain-table', 'data'),
-                [Input('submit-button-state', 'n_clicks'), Input('storage-historical', 'data'), Input('storage-quotes', 'data'), Input('option-chain-table', "page_current"), Input('option-chain-table', "page_size"), Input('option-chain-table', "sort_by")],
+                [Input('submit-button-state', 'n_clicks'), Input('storage-option-chain-all', 'data'), Input('storage-historical', 'data'), Input('storage-quotes', 'data'), Input('option-chain-table', "page_current"), Input('option-chain-table', "page_size"), Input('option-chain-table', "sort_by")],
                 [State('memory-ticker', 'value'), State('memory-contract-type','value'), State('memory-roi', 'value'), State('memory-delta', 'value'),  State('memory-expdays','value'), State('memory-confidence','value'), State('memory-vol-period','value')])
-    def on_data_set_table(n_clicks, hist_data, quotes_data, page_current, page_size, sort_by, ticker, contract_type, roi_selection, delta_range, expday_range, confidence_lvl, volatility_period):
+    def on_data_set_table(n_clicks, optionchain_data, hist_data, quotes_data, page_current, page_size, sort_by, ticker, contract_type, roi_selection, delta_range, expday_range, confidence_lvl, volatility_period):
         
         # Define empty list to be accumulate into Pandas dataframe (Source: https://stackoverflow.com/questions/10715965/add-one-row-to-pandas-dataframe)
         insert = []
 
         if hist_data is None:
             raise PreventUpdate 
+
+        # optionchain_df = pd.read_json(optionchain_data, orient='split')
+        # df = optionchain_df.loc[(optionchain_df['ROI']>=roi_selection) & (optionchain_df['Delta'].abs()<=delta_range)]
+        # df = df.drop(['Lower Bound', 'Upper Bound'], axis=1)
+        # df = df.loc[((df['Option Type']=='CALL') & (df['Strike'] >= df['Upper'])) | ((df['Option Type']=='PUT') & (df['Strike'] <= df['Lower']))]
+        # print(df)
 
         option_chain_response = tos_get_option_chain(ticker, contractType=contract_type, apiKey=API_KEY)  
         hist_price = hist_data[ticker]
@@ -398,10 +466,15 @@ def register_callbacks(app, API_KEY):
         # Define empty list to be accumulate into Pandas dataframe (Source: https://stackoverflow.com/questions/10715965/add-one-row-to-pandas-dataframe)
         insert = []   
         data = []
-        mkt_pressure = []
 
         if hist_data is None or quotes_data is None:
             raise PreventUpdate 
+
+        optionchain_df = pd.read_json(optionchain_data, orient='split')
+        mkt_pressure_df = optionchain_df.filter(['Ticker', 'Exp. Date (Local)', 'Option Type', 'Exp. Days', 'Strike', 'Open Int.', 'Total Vol.'])
+        mkt_pressure_df['Day'] = mkt_pressure_df['Exp. Days'].apply(lambda x: date.today() + timedelta(days=x))
+        mkt_pressure_df['StrikeOpenInterest'] = mkt_pressure_df['Strike'] * mkt_pressure_df['Open Int.']
+        mkt_pressure_df['StrikeTotalVolume'] = mkt_pressure_df['Strike'] * mkt_pressure_df['Total Vol.']
 
         hist_price = hist_data[ticker]   
 
@@ -410,35 +483,6 @@ def register_callbacks(app, API_KEY):
 
         hist_volatility = get_hist_volatility(PRICE_LS)
         stock_price = quotes_data[ticker]['lastPrice']
-
-        current_date = datetime.now()
-        option_chain_response = optionchain_data[ticker]
-        for option_chain_type in ['call','put']:
-            for exp_date in option_chain_response[f'{option_chain_type}ExpDateMap'].values():
-
-                for strike in exp_date.values():
-
-                    expiry_date = datetime.fromtimestamp(strike[0]["expirationDate"]/1000.0)
-                    strike_price = strike[0]['strikePrice']
-                    option_type = strike[0]['putCall']
-                    total_volume = strike[0]['totalVolume']  
-                    open_interest= strike[0]['openInterest']  
-                    
-                    day_diff = (expiry_date - current_date).days
-                    if day_diff < 0:
-                        continue
-
-                    day = date.today() + timedelta(days=day_diff)
-
-                    if day_diff <= expday_range:
-                        option_chain_row = [ticker, expiry_date, option_type, day_diff, day, strike_price, open_interest, total_volume]
-                        if all(col != None for col in option_chain_row):
-                            mkt_pressure.append(option_chain_row)
-        
-        mkt_pressure_df_cols = ['Ticker Symbol', 'Expiry Date', 'Option Type', 'Days to Expiry', 'Day', 'Strike', 'Open Interest', 'Total Volume']
-        mkt_pressure_df = pd.DataFrame(mkt_pressure, columns=mkt_pressure_df_cols)
-        mkt_pressure_df['StrikeOpenInterest'] = mkt_pressure_df['Strike'] * mkt_pressure_df['Open Interest']
-        mkt_pressure_df['StrikeTotalVolume'] = mkt_pressure_df['Strike'] * mkt_pressure_df['Total Volume']
 
         if tab == 'prob_cone_tab': # Historical Volatlity            
 
@@ -450,8 +494,8 @@ def register_callbacks(app, API_KEY):
 
             agg_mkt_pressure_df = mkt_pressure_df.groupby('Day').sum()
             agg_mkt_pressure_df = agg_mkt_pressure_df.reset_index()
-            agg_mkt_pressure_df['MktPressOpenInterest'] = agg_mkt_pressure_df['StrikeOpenInterest']/agg_mkt_pressure_df['Open Interest']
-            agg_mkt_pressure_df['MktPressTotalVolume'] = agg_mkt_pressure_df['StrikeTotalVolume']/agg_mkt_pressure_df['Total Volume']
+            agg_mkt_pressure_df['MktPressOpenInterest'] = agg_mkt_pressure_df['StrikeOpenInterest']/agg_mkt_pressure_df['Open Int.']
+            agg_mkt_pressure_df['MktPressTotalVolume'] = agg_mkt_pressure_df['StrikeTotalVolume']/agg_mkt_pressure_df['Total Vol.']
         
         elif tab == 'gbm_sim_tab': # GBM Simulation
 
@@ -551,37 +595,17 @@ def register_callbacks(app, API_KEY):
         insert = []
         current_date = datetime.now()
 
-        option_chain_response = optionchain_data[ticker]
-        for option_chain_type in ['call','put']:
-            for exp_date in option_chain_response[f'{option_chain_type}ExpDateMap'].values():
-                for strike in exp_date.values():
-
-                    expiry_date = datetime.fromtimestamp(strike[0]["expirationDate"]/1000.0)
-                    strike_price = strike[0]['strikePrice']
-                    option_type = strike[0]['putCall']
-                    total_volume = strike[0]['totalVolume']  
-                    open_interest= strike[0]['openInterest']  
-                    
-                    day_diff = (expiry_date - current_date).days
-                    if day_diff < 0:
-                        continue
-
-                    if day_diff <= expday_range:
-                        option_chain_row = [ticker, expiry_date, option_type, day_diff, strike_price, open_interest, total_volume]
-                        if all(col != None for col in option_chain_row):
-                            insert.append(option_chain_row)
-
-        df_cols = ['Ticker Symbol', 'Expiry Date', 'Option Type', 'Days to Expiry', 'Strike Price', 'Open Interest', 'Total Volume']
-        df = pd.DataFrame(insert, columns=df_cols)
+        optionchain_df = pd.read_json(optionchain_data, orient='split')
+        df = optionchain_df.filter(['Ticker', 'Exp. Date (Local)', 'Option Type', 'Exp. Days', 'Strike', 'Open Int.', 'Total Vol.'])
 
         # For filtering open i/r graph base on expday options
-        expday_options_ls = df['Days to Expiry'].unique()
+        expday_options_ls = df['Exp. Days'].unique()
         expday_options = [{"label": f"Strike Date: {(datetime.now()+timedelta(days=days_to_exp.item())).date()} (Days to Expiry: {days_to_exp})", 
                             "value": days_to_exp} for days_to_exp in list(expday_options_ls)]
 
         fig = go.Figure()
 
-        exp_days_ls = df['Days to Expiry'].to_list()
+        exp_days_ls = df['Exp. Days'].to_list()
         
         if expday_graph_selection is None:
             expday_select = max(exp_days_ls)
@@ -596,16 +620,16 @@ def register_callbacks(app, API_KEY):
             else:
                 bar_color = 'lightseagreen'
             fig.add_trace(go.Scatter(
-                        x=df.loc[(df['Ticker Symbol']==ticker) & (df['Option Type']==option_type) & (df['Days to Expiry']==expday_select),['Strike Price']].squeeze(), 
-                        y=df.loc[(df['Ticker Symbol']==ticker) & (df['Option Type']==option_type) & (df['Days to Expiry']==expday_select),['Total Volume']].squeeze(),
+                        x=df.loc[(df['Option Type']==option_type) & (df['Exp. Days']==expday_select),['Strike']].squeeze(), 
+                        y=df.loc[(df['Option Type']==option_type) & (df['Exp. Days']==expday_select),['Total Vol.']].squeeze(),
                         mode='lines+markers',
                         name=f'{ticker} - Total {option_type} Volume',
                         line_shape='spline',
                         marker_color=bar_color)
                         )
             fig.add_trace(go.Bar(
-                        x=df.loc[(df['Ticker Symbol']==ticker) & (df['Option Type']==option_type) & (df['Days to Expiry']==expday_select),['Strike Price']].squeeze(),
-                        y=df.loc[(df['Ticker Symbol']==ticker) & (df['Option Type']==option_type) & (df['Days to Expiry']==expday_select),['Open Interest']].squeeze(),
+                        x=df.loc[(df['Ticker']==ticker) & (df['Option Type']==option_type) & (df['Exp. Days']==expday_select),['Strike']].squeeze(),
+                        y=df.loc[(df['Ticker']==ticker) & (df['Option Type']==option_type) & (df['Exp. Days']==expday_select),['Open Int.']].squeeze(),
                         name=f'{ticker} - Open {option_type} Interest',
                         marker_color=bar_color,
                         opacity=0.5)
