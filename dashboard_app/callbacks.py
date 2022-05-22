@@ -97,21 +97,8 @@ def register_callbacks(app, API_KEY):
         # Create and append a list of historical share prices of specified ticker
         PRICE_LS = create_pricelist(hist_price)
 
-        trailing_3mth_price_hist = PRICE_LS[-90:]
-        trailing_1mth_price_hist = PRICE_LS[-30:]
-        trailing_2wk_price_hist = PRICE_LS[-14:]
-
         current_date = datetime.now()
-        
-        if volatility_period == "1Y":
-            hist_volatility = get_hist_volatility(PRICE_LS)
-        elif volatility_period == "3M":
-            hist_volatility = get_hist_volatility(trailing_3mth_price_hist)
-        elif volatility_period == "1M":
-            hist_volatility = get_hist_volatility(trailing_1mth_price_hist)
-        elif volatility_period == "2W":
-            hist_volatility = get_hist_volatility(trailing_2wk_price_hist)
-
+        hist_volatility = get_hist_volatility(PRICE_LS[volatility_period:])
         stock_price = quotes_data[ticker]['lastPrice']
 
         # Process API response data from https://developer.tdameritrade.com/option-chains/apis/get/marketdata/chains into Dataframe
@@ -182,14 +169,10 @@ def register_callbacks(app, API_KEY):
         # Create and append a list of historical share prices of specified ticker
         PRICE_LS = create_pricelist(hist_price)
 
-        trailing_3mth_price_hist = PRICE_LS[-90:]
-        trailing_1mth_price_hist = PRICE_LS[-30:]
-        trailing_2wks_price_hist = PRICE_LS[-14:]
-
         hist_volatility_1Y = get_hist_volatility(PRICE_LS)
-        hist_volatility_3m = get_hist_volatility(trailing_3mth_price_hist)
-        hist_volatility_1m = get_hist_volatility(trailing_1mth_price_hist)
-        hist_volatility_2w = get_hist_volatility(trailing_2wks_price_hist)
+        hist_volatility_3m = get_hist_volatility(PRICE_LS[-90:])
+        hist_volatility_1m = get_hist_volatility(PRICE_LS[-30:])
+        hist_volatility_2w = get_hist_volatility(PRICE_LS[-14:])
 
         stock_price = option_chain_response['underlyingPrice']
         stock_price_110percent = stock_price * 1.1
@@ -301,14 +284,12 @@ def register_callbacks(app, API_KEY):
 
     # Update Option Chain Table based on stored JSON value from API Response call 
     @app.callback(Output('option-chain-table', 'data'),
-                [Input('submit-button-state', 'n_clicks'), Input('storage-option-chain-all', 'data'), Input('storage-historical', 'data'), Input('storage-quotes', 'data'), Input('option-chain-table', "page_current"), Input('option-chain-table', "page_size"), Input('option-chain-table', "sort_by")],
-                [State('memory-ticker', 'value'), State('memory-contract-type','value'), State('memory-roi', 'value'), State('memory-delta', 'value'),  State('memory-expdays','value'), State('memory-confidence','value'), State('memory-vol-period','value')])
-    def on_data_set_table(n_clicks, optionchain_data, hist_data, quotes_data, page_current, page_size, sort_by, ticker, contract_type, roi_selection, delta_range, expday_range, confidence_lvl, volatility_period):
+                [Input('submit-button-state', 'n_clicks'), Input('storage-option-chain-all', 'data'), Input('storage-historical', 'data'), Input('option-chain-table', "page_current"), Input('option-chain-table', "page_size"), Input('option-chain-table', "sort_by")],
+                [State('memory-roi', 'value'), State('memory-delta', 'value')])
+    def on_data_set_table(n_clicks, optionchain_data, hist_data, page_current, page_size, sort_by, roi_selection, delta_range):
         
-        # Define empty list to be accumulate into Pandas dataframe (Source: https://stackoverflow.com/questions/10715965/add-one-row-to-pandas-dataframe)
-        insert = []
 
-        if hist_data is None:
+        if hist_data is None or optionchain_data is None:
             raise PreventUpdate 
 
         base_df = pd.read_json(optionchain_data, convert_dates=['Exp. Date (Local)'], orient='split')
@@ -337,7 +318,6 @@ def register_callbacks(app, API_KEY):
             # No sort is applied
             dff = df
 
-        print(dff)
         return dff.iloc[
             page_current*page_size:(page_current+ 1)*page_size
         ].to_dict('records')

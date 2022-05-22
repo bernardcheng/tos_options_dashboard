@@ -239,13 +239,13 @@ app_layout = html.Div([
                                 dcc.Dropdown(
                                         id="memory-vol-period",
                                         options=[
-                                            {"label": "2 Weeks", "value": "2W"},
-                                            {"label": "1 Month", "value": "1M"},
-                                            {"label": "3 Months", "value": "3M"},                                           
-                                            {"label": "1 Year", "value": "1Y"}
+                                            {"label": "2 Weeks", "value": -14},
+                                            {"label": "1 Month", "value": -30},
+                                            {"label": "3 Months", "value": -90},                                           
+                                            {"label": "1 Year", "value": 0}
                                         ],
                                         multi=False,
-                                        value="1M"
+                                        value=0
                                     )
                                 ],
                                 # style={'width': '30%', 'display': 'inline-block'}
