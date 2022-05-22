@@ -190,17 +190,13 @@ app_layout = html.Div([
                                 dcc.Dropdown(
                                         id="memory-expdays",
                                         options=[
-                                            {"label": "0 - 7 days", "value": 7},
-                                            {"label": "0 - 14 days", "value": 14},
-                                            {"label": "0 - 21 days", "value": 21},
-                                            {"label": "0 - 28 days", "value": 28},
-                                            {"label": "0 - 35 days", "value": 35},
-                                            {"label": "0 - 42 days", "value": 42},
-                                            {"label": "0 - 49 days", "value": 49},
-                                            {"label": "0 - 56 days", "value": 56}
+                                            {"label": "0 - 28 days (1M)", "value": 28},
+                                            {"label": "0 - 56 days (2M)", "value": 56},
+                                            {"label": "0 - 84 days (3M)", "value": 84},
+                                            {"label": "0 - 168 days (6M)", "value": 168}
                                         ],
                                         multi=False,
-                                        value=14.00
+                                        value=28.00
                                     )
                                 ],
                                 # style={'width': '30%', 'float': 'left', 'display': 'inline-block'}
