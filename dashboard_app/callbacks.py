@@ -8,11 +8,12 @@ import plotly.graph_objects as go
 
 from dash.dependencies import Input, Output, State
 from dash.exceptions import PreventUpdate
-from dashboard_app.layout import ticker_df_columns, option_chain_df_columns
+from dashboard_app.layout import base_df_columns, ticker_df_columns, option_chain_df_columns
 from lib.tos_api_calls import tos_search, tos_get_quotes, tos_get_option_chain, tos_get_price_hist
 from lib.tos_helper import create_pricelist
 from lib.gbm import prob_over, prob_under
 from lib.stats import get_hist_volatility, prob_cone, get_prob
+
 
 def register_callbacks(app, API_KEY):
 
@@ -151,11 +152,11 @@ def register_callbacks(app, API_KEY):
 
                     lower_bound, upper_bound = prob_cone(PRICE_LS, stock_price, hist_volatility, day_diff, probability=confidence_lvl)
 
-                    option_chain_row = [ticker, expiry_date, option_type, strike_price, day_diff, delta_val, prob_val, open_interest, total_volume, option_premium, option_leverage, bid_size, ask_size, roi_val]
+                    option_chain_row = [ticker, expiry_date, option_type, strike_price, day_diff, delta_val, prob_val, open_interest, total_volume, option_premium, option_leverage, bid_size, ask_size, roi_val, lower_bound, upper_bound]
                     insert.append(option_chain_row)
 
         # Create Empty Dataframe to be populated
-        df = pd.DataFrame(insert, columns=[column['name'] for column in option_chain_df_columns])   
+        df = pd.DataFrame(insert, columns=[column['name'] for column in base_df_columns])   
 
         return df.to_json(orient='split')
 
@@ -310,91 +311,19 @@ def register_callbacks(app, API_KEY):
         if hist_data is None:
             raise PreventUpdate 
 
-        # optionchain_df = pd.read_json(optionchain_data, orient='split')
-        # df = optionchain_df.loc[(optionchain_df['ROI']>=roi_selection) & (optionchain_df['Delta'].abs()<=delta_range)]
-        # df = df.drop(['Lower Bound', 'Upper Bound'], axis=1)
-        # df = df.loc[((df['Option Type']=='CALL') & (df['Strike'] >= df['Upper'])) | ((df['Option Type']=='PUT') & (df['Strike'] <= df['Lower']))]
-        # print(df)
+        base_df = pd.read_json(optionchain_data, convert_dates=['Exp. Date (Local)'], orient='split')
+        df = base_df.loc[(base_df['ROI']>=roi_selection) & (base_df['Delta'].abs()<=delta_range)]
+        df = df.loc[((df['Type']=='CALL') & (df['Strike'] >= df['Upper CI'])) | ((df['Type']=='PUT') & (df['Strike'] <= df['Lower CI']))]
+        df = df.drop(columns=['Upper CI', 'Lower CI'])
+        
+        # Remove floating point errors
+        df['ROI'] = df['ROI'].map('${:,.3f}'.format)
+        df['Leverage'] = df['Leverage'].map('${:,.3f}'.format)
+        df['Delta'] = df['Delta'].map('${:,.3f}'.format)
 
-        option_chain_response = tos_get_option_chain(ticker, contractType=contract_type, apiKey=API_KEY)  
-        hist_price = hist_data[ticker]
-
-        # Sanity check on API response data
-        if option_chain_response is None or list(option_chain_response.keys())[0] == "error":
-            raise PreventUpdate    
-
-        # Create and append a list of historical share prices of specified ticker
-        PRICE_LS = create_pricelist(hist_price)
-
-        trailing_3mth_price_hist = PRICE_LS[-90:]
-        trailing_1mth_price_hist = PRICE_LS[-30:]
-        trailing_2wk_price_hist = PRICE_LS[-14:]
-
-        current_date = datetime.now()
-
-        # hist_volatility = max([get_hist_volatility(PRICE_LS), get_hist_volatility(trailing_3mth_price_hist), get_hist_volatility(trailing_1mth_price_list)])
-        if volatility_period == "1Y":
-            hist_volatility = get_hist_volatility(PRICE_LS)
-        elif volatility_period == "3M":
-            hist_volatility = get_hist_volatility(trailing_3mth_price_hist)
-        elif volatility_period == "1M":
-            hist_volatility = get_hist_volatility(trailing_1mth_price_hist)
-        elif volatility_period == "2W":
-            hist_volatility = get_hist_volatility(trailing_2wk_price_hist)
-
-        stock_price = quotes_data[ticker]['lastPrice']
-
-        # Process API response data from https://developer.tdameritrade.com/option-chains/apis/get/marketdata/chains into Dataframe
-        for option_chain_type in ['call','put']:
-            for exp_date in option_chain_response[f'{option_chain_type}ExpDateMap'].values():
-                for strike in exp_date.values():
-
-                    expiry_date = datetime.fromtimestamp(strike[0]["expirationDate"]/1000.0)
-                    option_type = strike[0]['putCall']
-                    strike_price = strike[0]['strikePrice']
-                    bid_size = strike[0]['bidSize']  
-                    ask_size = strike[0]['askSize']  
-                    delta_val = strike[0]['delta']
-                    total_volume = strike[0]['totalVolume']  
-                    open_interest= strike[0]['openInterest']  
-
-                    # strike[0]['daysToExpiration'] can return negative numbers to mess up prob_cone calculations
-                    # day_diff = strike[0]['daysToExpiration']                     
-                    day_diff = (expiry_date - current_date).days
-                    if day_diff < 0:
-                        continue
-                    elif day_diff > expday_range:
-                        break
-
-                    option_premium = round(strike[0]['bid'] * strike[0]['multiplier'],2)
-                    roi_val = round(option_premium/(strike_price*100)*100,2)
-
-                    # Option leverage: https://www.reddit.com/r/thetagang/comments/pq1v2v/using_delta_to_calculate_an_options_leverage/
-                    if delta_val == 'NaN' or option_premium == 0:
-                        option_leverage = 0.0
-                    else:
-                        option_leverage = round((abs(float(delta_val))*stock_price)/option_premium,3)
-
-                    lower_bound, upper_bound = prob_cone(PRICE_LS, stock_price, hist_volatility, day_diff, probability=confidence_lvl)
-
-                    if day_diff > 0:
-                        prob_val = get_prob(stock_price, strike_price, hist_volatility, day_diff)
-                    else:
-                        prob_val = 0.0
-
-                    if roi_val >= roi_selection and (abs(delta_val) <= delta_range):
-                        if (option_type=='CALL' and strike_price >= upper_bound) or (option_type == "PUT" and strike_price <= lower_bound):
-                            option_chain_row = [ticker, expiry_date, option_type, strike_price, day_diff, delta_val, prob_val, open_interest, total_volume, option_premium, option_leverage, bid_size, ask_size, roi_val]
-                            if all(col != None for col in option_chain_row):
-                                insert.append(option_chain_row)
-                        else:
-                            continue
-                    else:
-                        continue
-
-        # Create Empty Dataframe to be populated
-        df = pd.DataFrame(insert, columns=[column['id'] for column in option_chain_df_columns])
-
+        # Rename df column names to column ids
+        df.columns = [column['id'] for column in option_chain_df_columns]
+        
         if len(sort_by):
             dff = df.sort_values(
                 [col['column_id'] for col in sort_by],
@@ -408,6 +337,7 @@ def register_callbacks(app, API_KEY):
             # No sort is applied
             dff = df
 
+        print(dff)
         return dff.iloc[
             page_current*page_size:(page_current+ 1)*page_size
         ].to_dict('records')

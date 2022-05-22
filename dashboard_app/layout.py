@@ -43,6 +43,26 @@ option_chain_df_columns=[
     dict(id='roi_val', name='ROI')
 ]
 
+# Define column names in Base Reference Dataframe
+base_df_columns=[
+    dict(id='ticker', name='Ticker'),
+    dict(id='exp_date', name='Exp. Date (Local)'),
+    dict(id='option_type', name='Type'),
+    dict(id='strike_price', name='Strike', type='numeric', format=money_full),
+    dict(id='exp_days', name='Exp. Days'),
+    dict(id='delta', name='Delta'),
+    dict(id='prob_val', name='Conf. Prob', type='numeric', format=percentage),
+    dict(id='open_interest', name='Open Int.', type='numeric', format=Format().group(True)),
+    dict(id='total_volume', name='Total Vol.', type='numeric', format=Format().group(True)),
+    dict(id='premium', name='Premium', type='numeric', format=money),
+    dict(id='option_leverage', name='Leverage'),
+    dict(id='bid_size', name='Bid Size', type='numeric', format=Format().group(True)),
+    dict(id='ask_size', name='Ask Size', type='numeric', format=Format().group(True)),
+    dict(id='roi_val', name='ROI'),
+    dict(id='lower_bound', name='Lower CI'),
+    dict(id='upper_bound', name='Upper CI')
+]
+
 # ------------------------------------------------------------------------------
 # App layout
 
