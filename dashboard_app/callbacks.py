@@ -92,13 +92,10 @@ def register_callbacks(app, API_KEY):
 
         insert = []
         current_date = datetime.now()
-        hist_price = hist_data[ticker]
-
-        # Create and append a list of historical share prices of specified ticker
-        PRICE_LS = create_pricelist(hist_price)
+        price_df = pd.DataFrame(hist_data[ticker]['candles'])
 
         current_date = datetime.now()
-        hist_volatility = get_hist_volatility(PRICE_LS[volatility_period:])
+        hist_volatility = get_hist_volatility(price_df, volatility_period)
         stock_price = quotes_data[ticker]['lastPrice']
 
         # Process API response data from https://developer.tdameritrade.com/option-chains/apis/get/marketdata/chains into Dataframe
@@ -137,7 +134,7 @@ def register_callbacks(app, API_KEY):
                     else:
                         prob_val = 0.0
 
-                    lower_bound, upper_bound = prob_cone(PRICE_LS, stock_price, hist_volatility, day_diff, probability=confidence_lvl)
+                    lower_bound, upper_bound = prob_cone(stock_price, hist_volatility, day_diff, confidence_lvl)
 
                     option_chain_row = [ticker, expiry_date, option_type, strike_price, day_diff, delta_val, prob_val, open_interest, total_volume, option_premium, option_leverage, bid_size, ask_size, roi_val, lower_bound, upper_bound]
                     insert.append(option_chain_row)
@@ -159,20 +156,17 @@ def register_callbacks(app, API_KEY):
         if ticker is None:
             raise PreventUpdate 
 
-        option_chain_response = tos_get_option_chain(ticker, contractType='ALL', rangeType='ALL', apiKey=API_KEY) 
-        hist_price = hist_data[ticker]
+        option_chain_response = tos_get_option_chain(ticker, contractType='ALL', rangeType='ALL', apiKey=API_KEY)
+        price_df = pd.DataFrame(hist_data[ticker]['candles'])
 
         # Sanity check on API response data
         if option_chain_response is None or list(option_chain_response.keys())[0] == "error":
             raise PreventUpdate 
 
-        # Create and append a list of historical share prices of specified ticker
-        PRICE_LS = create_pricelist(hist_price)
-
-        hist_volatility_1Y = get_hist_volatility(PRICE_LS)
-        hist_volatility_3m = get_hist_volatility(PRICE_LS[-90:])
-        hist_volatility_1m = get_hist_volatility(PRICE_LS[-30:])
-        hist_volatility_2w = get_hist_volatility(PRICE_LS[-14:])
+        hist_volatility_1Y = get_hist_volatility(price_df)
+        hist_volatility_3m = get_hist_volatility(price_df, -90)
+        hist_volatility_1m = get_hist_volatility(price_df, -30)
+        hist_volatility_2w = get_hist_volatility(price_df, -14)
 
         stock_price = option_chain_response['underlyingPrice']
         stock_price_110percent = stock_price * 1.1
@@ -370,8 +364,8 @@ def register_callbacks(app, API_KEY):
     # Update Prob Cone Graph based on stored JSON value from API Response call 
     @app.callback(Output('prob_cone_chart', 'figure'),
                 [Input('storage-option-chain-all', 'data'), Input('storage-historical', 'data'), Input('storage-quotes', 'data'), Input('tabs_prob_chart', 'value')],
-                [State('memory-ticker', 'value'), State('memory-expdays','value'), State('memory-confidence','value')])
-    def on_data_set_prob_cone(optionchain_data, hist_data, quotes_data, tab, ticker, expday_range, confidence_lvl):
+                [State('memory-ticker', 'value'), State('memory-expdays','value'), State('memory-vol-period','value'), State('memory-confidence','value')])
+    def on_data_set_prob_cone(optionchain_data, hist_data, quotes_data, tab, ticker, expday_range, volatility_period, confidence_lvl):
         
         # Define empty list to be accumulate into Pandas dataframe (Source: https://stackoverflow.com/questions/10715965/add-one-row-to-pandas-dataframe)
         insert = []   
@@ -386,19 +380,16 @@ def register_callbacks(app, API_KEY):
         mkt_pressure_df['StrikeOpenInterest'] = mkt_pressure_df['Strike'] * mkt_pressure_df['Open Int.']
         mkt_pressure_df['StrikeTotalVolume'] = mkt_pressure_df['Strike'] * mkt_pressure_df['Total Vol.']
 
-        hist_price = hist_data[ticker]   
+        price_df = pd.DataFrame(hist_data[ticker]['candles'])
 
-        # Create and append a list of historical share prices of specified ticker
-        PRICE_LS = create_pricelist(hist_price)
-
-        hist_volatility = get_hist_volatility(PRICE_LS)
+        hist_volatility = get_hist_volatility(price_df, volatility_period)
         stock_price = quotes_data[ticker]['lastPrice']
 
         if tab == 'prob_cone_tab': # Historical Volatlity            
 
             for i_day in range(expday_range + 1):
 
-                lower_bound, upper_bound = prob_cone(PRICE_LS, stock_price, hist_volatility, i_day, probability=confidence_lvl)
+                lower_bound, upper_bound = prob_cone(stock_price, hist_volatility, i_day, probability=confidence_lvl)
 
                 insert.append([ticker, (date.today() + timedelta(days=i_day)), stock_price, lower_bound, upper_bound, i_day])
 
