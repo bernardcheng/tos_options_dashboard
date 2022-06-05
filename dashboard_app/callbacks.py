@@ -163,10 +163,10 @@ def register_callbacks(app, API_KEY):
         if option_chain_response is None or list(option_chain_response.keys())[0] == "error":
             raise PreventUpdate 
 
-        hist_volatility_1Y = get_hist_volatility(price_df)
-        hist_volatility_3m = get_hist_volatility(price_df, -90)
-        hist_volatility_1m = get_hist_volatility(price_df, -30)
-        hist_volatility_2w = get_hist_volatility(price_df, -14)
+        hist_volatility_1Y = get_hist_volatility(price_df, window=252)
+        hist_volatility_3m = get_hist_volatility(price_df, window=90)
+        hist_volatility_1m = get_hist_volatility(price_df, window=30)
+        hist_volatility_2w = get_hist_volatility(price_df, window=14)
 
         stock_price = option_chain_response['underlyingPrice']
         stock_price_110percent = stock_price * 1.1
@@ -292,9 +292,9 @@ def register_callbacks(app, API_KEY):
         df = df.drop(columns=['Upper CI', 'Lower CI'])
         
         # Remove floating point errors
-        df['ROI'] = df['ROI'].map('${:,.3f}'.format)
-        df['Leverage'] = df['Leverage'].map('${:,.3f}'.format)
-        df['Delta'] = df['Delta'].map('${:,.3f}'.format)
+        df['ROI'] = df['ROI'].map('{:,.3f}'.format)
+        df['Leverage'] = df['Leverage'].map('{:,.3f}'.format)
+        df['Delta'] = df['Delta'].map('{:,.3f}'.format)
 
         # Rename df column names to column ids
         df.columns = [column['id'] for column in option_chain_df_columns]
@@ -405,7 +405,7 @@ def register_callbacks(app, API_KEY):
             x_ls, y_ls = [], []
 
             # Using pop stdev is correct: We have the entire popn data for N, thus we dont have to use sample std dev
-            std_dev = stat.pstdev(PRICE_LS)
+            std_dev = stat.pstdev(price_df['close'].to_list())
             step = int((std_dev * 2)//bin_size)
 
             # GBM Variables 

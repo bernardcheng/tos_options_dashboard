@@ -1,5 +1,5 @@
 import dash_table
-from dash_table.Format import Format
+from dash_table.Format import Format, Scheme
 from dash_table import FormatTemplate
 import dash_core_components as dcc
 import dash_html_components as html
@@ -9,6 +9,7 @@ import dash_bootstrap_components as dbc
 PAGE_SIZE = 30
 
 # Dash table value formatting
+decimal2 = Format(precision=2, scheme=Scheme.decimal)
 money = FormatTemplate.money(0)
 money_full=FormatTemplate.money(2)
 percentage = FormatTemplate.percentage(2)
@@ -32,12 +33,12 @@ option_chain_df_columns=[
     dict(id='option_type', name='Type'),
     dict(id='strike_price', name='Strike', type='numeric', format=money_full),
     dict(id='exp_days', name='Exp. Days'),
-    dict(id='delta', name='Delta'),
+    dict(id='delta', name='Delta', type='numeric', format=decimal2),
     dict(id='prob_val', name='Conf. Prob', type='numeric', format=percentage),
     dict(id='open_interest', name='Open Int.', type='numeric', format=Format().group(True)),
     dict(id='total_volume', name='Total Vol.', type='numeric', format=Format().group(True)),
     dict(id='premium', name='Premium', type='numeric', format=money),
-    dict(id='option_leverage', name='Leverage'),
+    dict(id='option_leverage', name='Leverage', format=decimal2),
     dict(id='bid_size', name='Bid Size', type='numeric', format=Format().group(True)),
     dict(id='ask_size', name='Ask Size', type='numeric', format=Format().group(True)),
     dict(id='roi_val', name='ROI')
@@ -50,12 +51,12 @@ base_df_columns=[
     dict(id='option_type', name='Type'),
     dict(id='strike_price', name='Strike', type='numeric', format=money_full),
     dict(id='exp_days', name='Exp. Days'),
-    dict(id='delta', name='Delta'),
+    dict(id='delta', name='Delta', type='numeric', format=decimal2),
     dict(id='prob_val', name='Conf. Prob', type='numeric', format=percentage),
     dict(id='open_interest', name='Open Int.', type='numeric', format=Format().group(True)),
     dict(id='total_volume', name='Total Vol.', type='numeric', format=Format().group(True)),
     dict(id='premium', name='Premium', type='numeric', format=money),
-    dict(id='option_leverage', name='Leverage'),
+    dict(id='option_leverage', name='Leverage', format=decimal2),
     dict(id='bid_size', name='Bid Size', type='numeric', format=Format().group(True)),
     dict(id='ask_size', name='Ask Size', type='numeric', format=Format().group(True)),
     dict(id='roi_val', name='ROI'),
@@ -235,13 +236,13 @@ app_layout = html.Div([
                                 dcc.Dropdown(
                                         id="memory-vol-period",
                                         options=[
-                                            {"label": "2 Weeks", "value": -14},
-                                            {"label": "1 Month", "value": -30},
-                                            {"label": "3 Months", "value": -90},                                           
-                                            {"label": "1 Year", "value": 0}
+                                            {"label": "2 Weeks", "value": 14},
+                                            {"label": "1 Month", "value": 30},
+                                            {"label": "3 Months", "value": 90},                                           
+                                            {"label": "1 Year", "value": 252}
                                         ],
                                         multi=False,
-                                        value=0
+                                        value=14
                                     )
                                 ],
                                 # style={'width': '30%', 'display': 'inline-block'}
