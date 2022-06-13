@@ -1,5 +1,4 @@
 import collections
-import numpy as np
 import pandas as pd
 import statistics as stat
 from datetime import datetime, timedelta, date
@@ -10,8 +9,7 @@ from dash.dependencies import Input, Output, State
 from dash.exceptions import PreventUpdate
 from dashboard_app.layout import base_df_columns, ticker_df_columns, option_chain_df_columns
 from lib.tos_api_calls import tos_search, tos_get_quotes, tos_get_option_chain, tos_get_price_hist
-from lib.tos_helper import create_pricelist
-from lib.gbm import prob_over, prob_under
+from lib.gbm import gbm_sim
 from lib.stats import get_hist_volatility, prob_cone, get_prob
 
 
@@ -400,16 +398,7 @@ def register_callbacks(app, API_KEY):
         
         elif tab == 'gbm_sim_tab': # GBM Simulation
 
-            bin_size = 10
-
-            x_ls, y_ls = [], []
-
-            # Using pop stdev is correct: We have the entire popn data for N, thus we dont have to use sample std dev
-            std_dev = stat.pstdev(price_df['close'].to_list())
-            step = int((std_dev * 2)//bin_size)
-
-            # GBM Variables 
-            S = stock_price #price today
+            # GBM Variables
             T = expday_range/252 # one year , for one month 1/12, 2months = 2/12 etc
             r = 0.01 # riskfree rate: https://www.treasury.gov/resource-center/data-chart-center/interest-rates/pages/TextView.aspx?data=billrates
             q = 0.007 # dividend rate
@@ -417,15 +406,7 @@ def register_callbacks(app, API_KEY):
             steps = 1 # no need to have more than 1 for non-path dependent security
             N = 1000000 # larger the better
 
-            for price in np.arange(start=stock_price-std_dev, stop=stock_price, step=step).tolist():
-                prob_val = prob_under(price, S, T, r, q, sigma, steps, N, show_plot=False)
-                x_ls.append(price)
-                y_ls.append(round(prob_val*100,1))
-
-            for price in np.arange(start=stock_price, stop=stock_price+std_dev, step=step).tolist():
-                prob_val = prob_over(price, S, T, r, q, sigma, steps, N, show_plot=False)
-                x_ls.append(price)
-                y_ls.append(round(prob_val*100,1))
+            x_ls, y_ls = gbm_sim(price_df, stock_price, T, r, q, sigma, steps, N, bin_size=10)
 
             data.append(go.Scatter(x=x_ls, y=y_ls, name='Price Probability', mode='lines+markers', line_shape='spline'))    
 

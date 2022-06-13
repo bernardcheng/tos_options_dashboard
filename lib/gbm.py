@@ -1,4 +1,5 @@
 import numpy as np
+import statistics as stat
 import matplotlib.pyplot as plt
 from scipy.stats import norm
 
@@ -61,6 +62,34 @@ def prob_under(value, S, T, r, q, sigma, steps, N, show_plot=True):
         plt.show()   
 
     return under/len(ST)
+
+# Returns x_ls (price) and y_ls (probabilities)
+
+# GBM Variables
+# T = expday_range/252 # one year , for one month 1/12, 2months = 2/12 etc
+# r = 0.01 # riskfree rate: https://www.treasury.gov/resource-center/data-chart-center/interest-rates/pages/TextView.aspx?data=billrates
+# q = 0.007 # dividend rate
+# sigma = hist_volatility # annualized volatility
+# steps = 1 # no need to have more than 1 for non-path dependent security
+# N = 1000000 # larger the better
+def gbm_sim(price_df, S, T, r, q, sigma, steps, N, bin_size=10):
+    x_ls, y_ls = [], []
+
+    # Using pop stdev is correct: We have the entire popn data for N, thus we dont have to use sample std dev
+    std_dev = stat.pstdev(price_df['close'].to_list())
+    step = int((std_dev * 2)//bin_size)
+
+    for price in np.arange(start=S-std_dev, stop=S, step=step).tolist():
+                prob_val = prob_under(price, S, T, r, q, sigma, steps, N, show_plot=False)
+                x_ls.append(price)
+                y_ls.append(round(prob_val*100,1))
+
+    for price in np.arange(start=S, stop=S+std_dev, step=step).tolist():
+        prob_val = prob_over(price, S, T, r, q, sigma, steps, N, show_plot=False)
+        x_ls.append(price)
+        y_ls.append(round(prob_val*100,1))
+
+    return x_ls, y_ls
 
 # if __name__ == "__main__":
     
