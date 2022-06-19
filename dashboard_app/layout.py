@@ -174,6 +174,25 @@ app_layout = html.Div([
                                 # style={'width': '30%', 'float': 'right', 'display': 'inline-block'}
                                 )
                         ),
+                        dbc.Col(
+                            html.Div([
+                                html.H5("Volatility Estimator:"),
+                                dcc.Dropdown(
+                                        id="memory-volest-type",
+                                        options=[
+                                            {"label": "Log Returns", "value": "log_returns"},
+                                            {"label": "Garman-Klass", "value": "garman_klass"},
+                                            {"label": "Hodges Tompkins", "value": "hodges_tompkins"},
+                                            {"label": "Parkinson", "value": "parkinson"},
+                                            {"label": "Rogers Satchell", "value": "rogers_satchell"},
+                                            {"label": "Yang Zhang", "value": "yang_zhang"}],
+                                        multi=False,
+                                        value="log_returns"
+                                    )
+                                ],
+                                # style={'width': '30%', 'float': 'right', 'display': 'inline-block'}
+                                )
+                        ),
                     ]
                 ),          
         ],
@@ -248,6 +267,7 @@ app_layout = html.Div([
                                 # style={'width': '30%', 'display': 'inline-block'}
                             )
                         ),
+                        dbc.Col()
                     ]
                 ),          
         ],
@@ -323,29 +343,58 @@ app_layout = html.Div([
         )
     ]),
 
-    html.Div([ 
-        dcc.Dropdown(
-            id="memory_exp_day_graph",
-            placeholder="Select expiration date after entering the above fields.",
-            multi=False,
-            style={'width': "100%", 'padding-bottom': '10px',} 
-        ),              
-        dcc.Loading(
-            id="loading_open_ir_vol",
-            type="default",
-            children=html.Div([
-                dcc.Graph(
-                    id='open_ir_vol', 
-                    figure={
-                        'layout':{'title': {'text':'Open Interest/Volume Plot'}}       
-                    },
-                    config={"displayModeBar": False, "scrollZoom": True}
-                )
-            ])
-        ),               
-    ], 
-    className="pretty_container",
-    ),
+    html.Div([
+        html.Div([
+            dcc.Tabs(id='tabs_vol_chart', value='vol_tab_2w', children=[
+                dcc.Tab(label='2 Weeks', value='vol_tab_2w', className='custom-tab'),
+                dcc.Tab(label='1 Month', value='vol_tab_1M', className='custom-tab'),
+                dcc.Tab(label='3 Months', value='vol_tab_3M', className='custom-tab'),
+                dcc.Tab(label='1 Year', value='vol_tab_1Y', className='custom-tab'),
+            ]),
+            dcc.Loading(
+                id="loading_vol_hist_chart",
+                type="default",
+                children=html.Div([
+                    dcc.Graph(
+                        id='vol_chart', 
+                        figure={
+                            'layout':{'title': {'text':'Historical Volatility'}}       
+                        },
+                        config={"displayModeBar": False, "scrollZoom": True}
+                    )
+                ])
+            )
+        ],
+        className="pretty_container",
+        style={'width': '48%', 'display': 'inline-block'}
+        ),
+        html.Div([ 
+            dcc.Dropdown(
+                id="memory_exp_day_graph",
+                placeholder="Select expiration date after entering the above fields.",
+                multi=False,
+                style={'width': "100%", 'padding-bottom': '10px',} 
+            ),              
+            dcc.Loading(
+                id="loading_open_ir_vol",
+                type="default",
+                children=html.Div([
+                    dcc.Graph(
+                        id='open_ir_vol', 
+                        figure={
+                            'layout':{'title': {'text':'Open Interest/Volume Plot'}}       
+                        },
+                        config={"displayModeBar": False, "scrollZoom": True}
+                    )
+                ])
+            ),               
+        ], 
+        className="pretty_container",
+        style={'width': '48%', 'float': 'right', 'display': 'inline-block'}
+        )
+    ]),
+
+    
 
     html.Div([
         html.H5("Ticker Data \u2754", id='ticker_data'), # Source: https://unicode.org/emoji/charts/full-emoji-list.html

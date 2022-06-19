@@ -80,8 +80,8 @@ def register_callbacks(app, API_KEY):
     # Temporarily stores JSON data in the browser (generally safe to store up to 2MB of data)
     @app.callback(Output('storage-option-chain-all', 'data'),
                 [Input('submit-button-state', 'n_clicks'), Input('storage-historical', 'data'), Input('storage-quotes', 'data')],
-                [State('memory-ticker', 'value'), State('memory-expdays','value'), State('memory-vol-period','value'), State('memory-confidence','value')])
-    def get_option_chain_all(n_clicks, hist_data, quotes_data, ticker, expday_range, volatility_period, confidence_lvl):
+                [State('memory-ticker', 'value'), State('memory-expdays','value'), State('memory-vol-period','value'), State('memory-confidence','value'), State('memory-volest-type','value')])
+    def get_option_chain_all(n_clicks, hist_data, quotes_data, ticker, expday_range, volatility_period, confidence_lvl, vol_est_type):
 
         if ticker is None:
             raise PreventUpdate 
@@ -93,7 +93,7 @@ def register_callbacks(app, API_KEY):
         price_df = pd.DataFrame(hist_data[ticker]['candles'])
 
         current_date = datetime.now()
-        hist_volatility = get_hist_volatility(price_df, volatility_period)
+        hist_volatility = get_hist_volatility(price_df, volatility_period, estimator=vol_est_type).iloc[-1]
         stock_price = quotes_data[ticker]['lastPrice']
 
         # Process API response data from https://developer.tdameritrade.com/option-chains/apis/get/marketdata/chains into Dataframe
@@ -142,11 +142,272 @@ def register_callbacks(app, API_KEY):
 
         return df.to_json(orient='split')
 
+    # Update Price History Graph based on stored JSON value from API Response call 
+    @app.callback(Output('price_chart', 'figure'),
+                [Input('storage-historical', 'data'), Input('tabs_price_chart', 'value')],
+                [State('memory-ticker', 'value')])
+    def on_data_set_price_history(hist_data, tab, ticker):
+
+        # Create a Python dict in which a new item will be created upon search (if it doesn't exist before)
+        # Source: https://stackoverflow.com/questions/5900578/how-does-collections-defaultdict-work
+        aggregation = collections.defaultdict(
+            lambda: collections.defaultdict(list)
+        )        
+
+        if ticker is None:
+            raise PreventUpdate 
+
+        if tab == 'price_tab_1': # 1 Day
+            hist_price = tos_get_price_hist(ticker, periodType='day', period=1, frequencyType='minute', frequency=1, apiKey=API_KEY)  
+        elif tab == 'price_tab_2': # 5 Days
+            hist_price = tos_get_price_hist(ticker, periodType='day', period=5, frequencyType='minute', frequency=5, apiKey=API_KEY)
+        elif tab == 'price_tab_3': # 1 Month
+            hist_price = tos_get_price_hist(ticker, periodType='month', period=1, frequencyType='daily', frequency=1, apiKey=API_KEY)
+        elif tab == 'price_tab_4': # 1 Year
+            hist_price = hist_data[ticker]
+
+            if hist_price is None:
+                raise PreventUpdate   
+        elif tab == 'price_tab_5': # 5 Years
+            hist_price = tos_get_price_hist(ticker, periodType='year', period=5, frequencyType='daily', frequency=1, apiKey=API_KEY)  
+
+        for candle in hist_price['candles']:
+
+            a = aggregation[str(ticker)]
+            
+            a['name'] = str(ticker)
+            a['mode'] = 'lines'
+
+            # Price on y-axis, Time on x-axis
+            a['y'].append(candle['close'])
+            a['x'].append(datetime.fromtimestamp(candle['datetime']/1000.0)) 
+        
+        return {
+            'layout':{'title': {'text':'Price History'}},
+            'data': [x for x in aggregation.values()]
+        }
+
+    # Update Prob Cone Graph based on stored JSON value from API Response call 
+    @app.callback(Output('prob_cone_chart', 'figure'),
+                [Input('storage-option-chain-all', 'data'), Input('storage-historical', 'data'), Input('storage-quotes', 'data'), Input('tabs_prob_chart', 'value')],
+                [State('memory-ticker', 'value'), State('memory-expdays','value'), State('memory-vol-period','value'), State('memory-confidence','value'),State('memory-volest-type','value')])
+    def on_data_set_prob_cone(optionchain_data, hist_data, quotes_data, tab, ticker, expday_range, volatility_period, confidence_lvl, vol_est_type):
+        
+        # Define empty list to be accumulate into Pandas dataframe (Source: https://stackoverflow.com/questions/10715965/add-one-row-to-pandas-dataframe)
+        insert = []   
+        data = []
+
+        if hist_data is None or quotes_data is None:
+            raise PreventUpdate 
+
+        optionchain_df = pd.read_json(optionchain_data, orient='split')
+        mkt_pressure_df = optionchain_df.filter(['Ticker', 'Exp. Date (Local)', 'Option Type', 'Exp. Days', 'Strike', 'Open Int.', 'Total Vol.'])
+        mkt_pressure_df['Day'] = mkt_pressure_df['Exp. Days'].apply(lambda x: date.today() + timedelta(days=x))
+        mkt_pressure_df['StrikeOpenInterest'] = mkt_pressure_df['Strike'] * mkt_pressure_df['Open Int.']
+        mkt_pressure_df['StrikeTotalVolume'] = mkt_pressure_df['Strike'] * mkt_pressure_df['Total Vol.']
+
+        price_df = pd.DataFrame(hist_data[ticker]['candles'])
+
+        hist_volatility = get_hist_volatility(price_df, volatility_period, estimator=vol_est_type).iloc[-1]
+        stock_price = quotes_data[ticker]['lastPrice']
+
+        if tab == 'prob_cone_tab': # Historical Volatlity            
+
+            for i_day in range(expday_range + 1):
+
+                lower_bound, upper_bound = prob_cone(stock_price, hist_volatility, i_day, probability=confidence_lvl)
+
+                insert.append([ticker, (date.today() + timedelta(days=i_day)), stock_price, lower_bound, upper_bound, i_day])
+
+            agg_mkt_pressure_df = mkt_pressure_df.groupby('Day').sum()
+            agg_mkt_pressure_df = agg_mkt_pressure_df.reset_index()
+            agg_mkt_pressure_df['MktPressOpenInterest'] = agg_mkt_pressure_df['StrikeOpenInterest']/agg_mkt_pressure_df['Open Int.']
+            agg_mkt_pressure_df['MktPressTotalVolume'] = agg_mkt_pressure_df['StrikeTotalVolume']/agg_mkt_pressure_df['Total Vol.']
+        
+        elif tab == 'gbm_sim_tab': # GBM Simulation
+
+            # GBM Variables
+            T = expday_range/252 # one year , for one month 1/12, 2months = 2/12 etc
+            r = 0.01 # riskfree rate: https://www.treasury.gov/resource-center/data-chart-center/interest-rates/pages/TextView.aspx?data=billrates
+            q = 0.007 # dividend rate
+            sigma = hist_volatility # annualized volatility
+            steps = 1 # no need to have more than 1 for non-path dependent security
+            N = 1000000 # larger the better
+
+            x_ls, y_ls = gbm_sim(price_df, stock_price, T, r, q, sigma, steps, N, bin_size=10)
+
+            data.append(go.Scatter(x=x_ls, y=y_ls, name='Price Probability', mode='lines+markers', line_shape='spline'))    
+
+        if tab == 'prob_cone_tab': # Historical Volatility
+            df_cols = ['Ticker Symbol', 'Day', 'Stock Price', 'Lower Bound', 'Upper Bound', 'Days to Expiry']
+            df = pd.DataFrame(insert, columns=df_cols)
+
+            fig = go.Figure()
+            # Note: .squeeze() is to convert Dataframe into Series format after df.loc()
+            fig.add_trace(go.Scatter(
+                        x=df.loc[df['Ticker Symbol']==ticker,['Day']].squeeze(), 
+                        y=df.loc[df['Ticker Symbol']==ticker,['Upper Bound']].squeeze(),
+                        mode='lines+markers',
+                        name=f'{ticker}: Upper Bound',
+                        line_shape='spline')
+                    )
+            fig.add_trace(go.Scatter(
+                        x=df.loc[df['Ticker Symbol']==ticker,['Day']].squeeze(), 
+                        y=df.loc[df['Ticker Symbol']==ticker,['Lower Bound']].squeeze(),
+                        mode='lines+markers',
+                        name=f'{ticker}: Lower Bound',
+                        line_shape='spline')
+                    )
+            fig.add_trace(go.Scatter(
+                        x=agg_mkt_pressure_df['Day'].squeeze(), 
+                        y=agg_mkt_pressure_df['MktPressOpenInterest'].squeeze(),
+                        mode='lines+markers',
+                        name=f'{ticker}: Open Interest Pressure',
+                        line_shape='spline')
+                    )
+            fig.add_trace(go.Scatter(
+                        x=agg_mkt_pressure_df['Day'].squeeze(), 
+                        y=agg_mkt_pressure_df['MktPressTotalVolume'].squeeze(),
+                        mode='lines+markers',
+                        name=f'{ticker}: Total Volume Pressure',
+                        line_shape='spline')
+                    )
+
+            fig.update_layout(
+                title=f'Probability Cone ({confidence_lvl*100}% Confidence)',
+                title_x=0.5, # Centre the title text
+                yaxis_title='Stock Price',
+                plot_bgcolor='rgb(256,256,256)' # White Plot background
+            )
+
+            fig.update_layout(legend=dict(yanchor="top", y=1, xanchor="left", x=0))
+
+        elif tab == 'gbm_sim_tab': # GBM Simulation
+            fig = go.Figure(data=data)
+            fig.update_layout(
+                title='Probability Distribution',
+                title_x=0.5, # Centre the title text
+                yaxis_title='Probability (%)',
+                plot_bgcolor='rgb(256,256,256)' # White Plot background
+            )
+
+        fig.update_xaxes(showgrid=True, gridcolor='LightGrey')
+        fig.update_yaxes(showgrid=True, gridcolor='LightGrey')
+
+        return fig
+
+    # Update Historical Volatility Graph based on selected Volatility Estimator
+    @app.callback(Output('vol_chart', 'figure'),
+                [Input('storage-historical', 'data'), Input('tabs_vol_chart', 'value')],
+                [State('memory-ticker', 'value'), State('memory-volest-type', 'value')])
+    def on_data_set_vol_history(hist_data, tab, ticker, vol_est_type):
+
+        if hist_data is None:
+                raise PreventUpdate  
+        price_df = pd.DataFrame(hist_data[ticker]['candles'])
+
+        if tab == 'vol_tab_2w': # 2 weeks
+            volatility_period = 14
+        elif tab == 'vol_tab_1M': # 1 Month
+            volatility_period = 30
+        elif tab == 'vol_tab_3M': # 3 Months
+            volatility_period = 90
+        elif tab == 'vol_tab_1Y': # 1 Year
+            volatility_period = 252           
+        
+        # Pandas Series
+        hist_volatility = get_hist_volatility(price_df, volatility_period, estimator=vol_est_type)
+        
+        hist_volatility_df = pd.DataFrame({ 'Day' : range(1, len(hist_volatility) + 1 ,1),
+                                            'Vol' : hist_volatility})
+        fig = go.Figure()
+
+        fig.add_trace(go.Scatter(
+                        x=hist_volatility_df['Day'].squeeze(),
+                        y=hist_volatility_df['Vol'].squeeze(),
+                        mode='lines+markers',
+                        name=f'{ticker}: Rolling Volatility ({volatility_period} days)',
+                        line_shape='spline')
+                    )
+
+        fig.update_layout(
+                title=f'Historical Volatility (Window: {volatility_period} days)',
+                title_x=0.5, # Centre the title text
+                yaxis_title='Stock Price',
+                plot_bgcolor='rgb(256,256,256)' # White Plot background
+            )
+
+        fig.update_xaxes(showgrid=True, gridcolor='LightGrey')
+        fig.update_yaxes(showgrid=True, gridcolor='LightGrey')
+
+        return fig        
+        
+
+    # Update Open Interest/Volume Graph based on stored JSON value from API Response call (does not work with multiple tickers selected)
+    @app.callback([Output('open_ir_vol', 'figure'),Output('memory_exp_day_graph', 'options')],
+                [Input('storage-option-chain-all', 'data')],
+                [State('memory-ticker', 'value'), State('memory-expdays','value'), State('memory_exp_day_graph','value')])
+    def on_data_set_open_interest_vol(optionchain_data, ticker, expday_range, expday_graph_selection):
+        
+        if optionchain_data is None:
+            raise PreventUpdate
+
+        optionchain_df = pd.read_json(optionchain_data, orient='split')
+        df = optionchain_df.filter(['Ticker', 'Exp. Date (Local)', 'Type', 'Exp. Days', 'Strike', 'Open Int.', 'Total Vol.'])
+
+        # For filtering open i/r graph base on expday options
+        expday_options_ls = df['Exp. Days'].unique()
+        expday_options = [{"label": f"Strike Date: {(datetime.now()+timedelta(days=days_to_exp.item())).date()} (Days to Expiry: {days_to_exp})", 
+                            "value": days_to_exp} for days_to_exp in list(expday_options_ls)]
+
+        fig = go.Figure()
+
+        exp_days_ls = df['Exp. Days'].to_list()
+        
+        if expday_graph_selection is None:
+            expday_select = max(exp_days_ls)
+        else:
+            expday_select = expday_graph_selection
+
+        # Note: .squeeze() is to convert Dataframe into Series format after df.loc()
+        # Colour options: https://developer.mozilla.org/en-US/docs/Web/CSS/color_value
+        for option_type in ('PUT','CALL'):
+            if option_type == 'PUT':
+                bar_color = 'indianred'
+            else:
+                bar_color = 'lightseagreen'
+            fig.add_trace(go.Scatter(
+                        x=df.loc[(df['Type']==option_type) & (df['Exp. Days']==expday_select),['Strike']].squeeze(), 
+                        y=df.loc[(df['Type']==option_type) & (df['Exp. Days']==expday_select),['Total Vol.']].squeeze(),
+                        mode='lines+markers',
+                        name=f'{ticker}: Total {option_type} Volume',
+                        line_shape='spline',
+                        marker_color=bar_color)
+                        )
+            fig.add_trace(go.Bar(
+                        x=df.loc[(df['Type']==option_type) & (df['Exp. Days']==expday_select),['Strike']].squeeze(),
+                        y=df.loc[(df['Type']==option_type) & (df['Exp. Days']==expday_select),['Open Int.']].squeeze(),
+                        name=f'{ticker}: Open {option_type} Interest',
+                        marker_color=bar_color,
+                        opacity=0.5)
+                    )    
+        fig.update_layout(
+            title=f'Open Interest/Volume',
+            title_x=0.5, # Centre the title text
+            xaxis_title='Strike Price',
+            yaxis_title='No. of Contracts',
+            plot_bgcolor='rgb(256,256,256)' # White Plot background
+        )
+
+        fig.update_layout(legend=dict(yanchor="top", y=1, xanchor="right", x=1)) # Docs: https://community.plotly.com/t/what-do-xanchor-and-yanchor-mean/6074
+
+        return fig, expday_options
+
     # Update Ticker Table from API Response call
     @app.callback(Output('ticker-data-table', 'data'),
                 [Input('submit-button-state', 'n_clicks'), Input('storage-historical', 'data'), Input('storage-option-chain-all', 'data'), Input('ticker-data-table', "page_current"), Input('ticker-data-table', "page_size"), Input('ticker-data-table', "sort_by")],
-                [State('memory-ticker', 'value')])
-    def on_data_set_ticker_table(n_clicks, hist_data, optionchain_data, page_current, page_size, sort_by, ticker):
+                [State('memory-ticker', 'value'), State('memory-volest-type','value')])
+    def on_data_set_ticker_table(n_clicks, hist_data, optionchain_data, page_current, page_size, sort_by, ticker, vol_est_type):
         
         # Define empty list to be accumulate into Pandas dataframe (Source: https://stackoverflow.com/questions/10715965/add-one-row-to-pandas-dataframe)
         insert = []
@@ -161,10 +422,10 @@ def register_callbacks(app, API_KEY):
         if option_chain_response is None or list(option_chain_response.keys())[0] == "error":
             raise PreventUpdate 
 
-        hist_volatility_1Y = get_hist_volatility(price_df, window=252)
-        hist_volatility_3m = get_hist_volatility(price_df, window=90)
-        hist_volatility_1m = get_hist_volatility(price_df, window=30)
-        hist_volatility_2w = get_hist_volatility(price_df, window=14)
+        hist_volatility_1Y = get_hist_volatility(price_df, window=252, estimator=vol_est_type).iloc[-1]
+        hist_volatility_3m = get_hist_volatility(price_df, window=90, estimator=vol_est_type).iloc[-1]
+        hist_volatility_1m = get_hist_volatility(price_df, window=30, estimator=vol_est_type).iloc[-1]
+        hist_volatility_2w = get_hist_volatility(price_df, window=14, estimator=vol_est_type).iloc[-1]
 
         stock_price = option_chain_response['underlyingPrice']
         stock_price_110percent = stock_price * 1.1
@@ -313,212 +574,3 @@ def register_callbacks(app, API_KEY):
         return dff.iloc[
             page_current*page_size:(page_current+ 1)*page_size
         ].to_dict('records')
-
-    # Update Price History Graph based on stored JSON value from API Response call 
-    @app.callback(Output('price_chart', 'figure'),
-                [Input('storage-historical', 'data'), Input('tabs_price_chart', 'value')],
-                [State('memory-ticker', 'value')])
-    def on_data_set_price_history(hist_data, tab, ticker):
-
-        # Create a Python dict in which a new item will be created upon search (if it doesn't exist before)
-        # Source: https://stackoverflow.com/questions/5900578/how-does-collections-defaultdict-work
-        aggregation = collections.defaultdict(
-            lambda: collections.defaultdict(list)
-        )        
-
-        if ticker is None:
-            raise PreventUpdate 
-
-        if tab == 'price_tab_1': # 1 Day
-            hist_price = tos_get_price_hist(ticker, periodType='day', period=1, frequencyType='minute', frequency=1, apiKey=API_KEY)  
-        elif tab == 'price_tab_2': # 5 Days
-            hist_price = tos_get_price_hist(ticker, periodType='day', period=5, frequencyType='minute', frequency=5, apiKey=API_KEY)
-        elif tab == 'price_tab_3': # 1 Month
-            hist_price = tos_get_price_hist(ticker, periodType='month', period=1, frequencyType='daily', frequency=1, apiKey=API_KEY)
-        elif tab == 'price_tab_4': # 1 Year
-            hist_price = hist_data[ticker]
-
-            if hist_price is None:
-                raise PreventUpdate   
-        elif tab == 'price_tab_5': # 5 Years
-            hist_price = tos_get_price_hist(ticker, periodType='year', period=5, frequencyType='daily', frequency=1, apiKey=API_KEY)  
-
-        for candle in hist_price['candles']:
-
-            a = aggregation[str(ticker)]
-            
-            a['name'] = str(ticker)
-            a['mode'] = 'lines'
-
-            # Price on y-axis, Time on x-axis
-            a['y'].append(candle['close'])
-            a['x'].append(datetime.fromtimestamp(candle['datetime']/1000.0)) 
-        
-        return {
-            'layout':{'title': {'text':'Price History'}},
-            'data': [x for x in aggregation.values()]
-        }
-
-    # Update Prob Cone Graph based on stored JSON value from API Response call 
-    @app.callback(Output('prob_cone_chart', 'figure'),
-                [Input('storage-option-chain-all', 'data'), Input('storage-historical', 'data'), Input('storage-quotes', 'data'), Input('tabs_prob_chart', 'value')],
-                [State('memory-ticker', 'value'), State('memory-expdays','value'), State('memory-vol-period','value'), State('memory-confidence','value')])
-    def on_data_set_prob_cone(optionchain_data, hist_data, quotes_data, tab, ticker, expday_range, volatility_period, confidence_lvl):
-        
-        # Define empty list to be accumulate into Pandas dataframe (Source: https://stackoverflow.com/questions/10715965/add-one-row-to-pandas-dataframe)
-        insert = []   
-        data = []
-
-        if hist_data is None or quotes_data is None:
-            raise PreventUpdate 
-
-        optionchain_df = pd.read_json(optionchain_data, orient='split')
-        mkt_pressure_df = optionchain_df.filter(['Ticker', 'Exp. Date (Local)', 'Option Type', 'Exp. Days', 'Strike', 'Open Int.', 'Total Vol.'])
-        mkt_pressure_df['Day'] = mkt_pressure_df['Exp. Days'].apply(lambda x: date.today() + timedelta(days=x))
-        mkt_pressure_df['StrikeOpenInterest'] = mkt_pressure_df['Strike'] * mkt_pressure_df['Open Int.']
-        mkt_pressure_df['StrikeTotalVolume'] = mkt_pressure_df['Strike'] * mkt_pressure_df['Total Vol.']
-
-        price_df = pd.DataFrame(hist_data[ticker]['candles'])
-
-        hist_volatility = get_hist_volatility(price_df, volatility_period)
-        stock_price = quotes_data[ticker]['lastPrice']
-
-        if tab == 'prob_cone_tab': # Historical Volatlity            
-
-            for i_day in range(expday_range + 1):
-
-                lower_bound, upper_bound = prob_cone(stock_price, hist_volatility, i_day, probability=confidence_lvl)
-
-                insert.append([ticker, (date.today() + timedelta(days=i_day)), stock_price, lower_bound, upper_bound, i_day])
-
-            agg_mkt_pressure_df = mkt_pressure_df.groupby('Day').sum()
-            agg_mkt_pressure_df = agg_mkt_pressure_df.reset_index()
-            agg_mkt_pressure_df['MktPressOpenInterest'] = agg_mkt_pressure_df['StrikeOpenInterest']/agg_mkt_pressure_df['Open Int.']
-            agg_mkt_pressure_df['MktPressTotalVolume'] = agg_mkt_pressure_df['StrikeTotalVolume']/agg_mkt_pressure_df['Total Vol.']
-        
-        elif tab == 'gbm_sim_tab': # GBM Simulation
-
-            # GBM Variables
-            T = expday_range/252 # one year , for one month 1/12, 2months = 2/12 etc
-            r = 0.01 # riskfree rate: https://www.treasury.gov/resource-center/data-chart-center/interest-rates/pages/TextView.aspx?data=billrates
-            q = 0.007 # dividend rate
-            sigma = hist_volatility # annualized volatility
-            steps = 1 # no need to have more than 1 for non-path dependent security
-            N = 1000000 # larger the better
-
-            x_ls, y_ls = gbm_sim(price_df, stock_price, T, r, q, sigma, steps, N, bin_size=10)
-
-            data.append(go.Scatter(x=x_ls, y=y_ls, name='Price Probability', mode='lines+markers', line_shape='spline'))    
-
-        if tab == 'prob_cone_tab': # Historical Volatility
-            df_cols = ['Ticker Symbol', 'Day', 'Stock Price', 'Lower Bound', 'Upper Bound', 'Days to Expiry']
-            df = pd.DataFrame(insert, columns=df_cols)
-
-            fig = go.Figure()
-            # Note: .squeeze() is to convert Dataframe into Series format after df.loc()
-            fig.add_trace(go.Scatter(
-                        x=df.loc[df['Ticker Symbol']==ticker,['Day']].squeeze(), 
-                        y=df.loc[df['Ticker Symbol']==ticker,['Upper Bound']].squeeze(),
-                        mode='lines+markers',
-                        name=f'{ticker} - Upper Bound',
-                        line_shape='spline')
-                    )
-            fig.add_trace(go.Scatter(
-                        x=df.loc[df['Ticker Symbol']==ticker,['Day']].squeeze(), 
-                        y=df.loc[df['Ticker Symbol']==ticker,['Lower Bound']].squeeze(),
-                        mode='lines+markers',
-                        name=f'{ticker} - Lower Bound',
-                        line_shape='spline')
-                    )
-            fig.add_trace(go.Scatter(
-                        x=agg_mkt_pressure_df['Day'].squeeze(), 
-                        y=agg_mkt_pressure_df['MktPressOpenInterest'].squeeze(),
-                        mode='lines+markers',
-                        name=f'{ticker} - Market Pressure (Open Interest)',
-                        line_shape='spline')
-                    )
-            fig.add_trace(go.Scatter(
-                        x=agg_mkt_pressure_df['Day'].squeeze(), 
-                        y=agg_mkt_pressure_df['MktPressTotalVolume'].squeeze(),
-                        mode='lines+markers',
-                        name=f'{ticker} - Market Pressure (Total Volume)',
-                        line_shape='spline')
-                    )
-
-            fig.update_layout(
-                title=f'Probability Cone ({confidence_lvl*100}% Confidence)',
-                title_x=0.5, # Centre the title text
-                yaxis_title='Stock Price',
-                plot_bgcolor='rgb(256,256,256)' # White Plot background
-            )
-        elif tab == 'gbm_sim_tab': # GBM Simulation
-            fig = go.Figure(data=data)
-            fig.update_layout(
-                title='Probability Distribution',
-                title_x=0.5, # Centre the title text
-                yaxis_title='Probability (%)',
-                plot_bgcolor='rgb(256,256,256)' # White Plot background
-            )
-
-        fig.update_xaxes(showgrid=True, gridcolor='LightGrey')
-        fig.update_yaxes(showgrid=True, gridcolor='LightGrey')
-
-        return fig
-
-    # Update Open Interest/Volume Graph based on stored JSON value from API Response call (does not work with multiple tickers selected)
-    @app.callback([Output('open_ir_vol', 'figure'),Output('memory_exp_day_graph', 'options')],
-                [Input('storage-option-chain-all', 'data')],
-                [State('memory-ticker', 'value'), State('memory-expdays','value'), State('memory_exp_day_graph','value')])
-    def on_data_set_open_interest_vol(optionchain_data, ticker, expday_range, expday_graph_selection):
-        
-        if optionchain_data is None:
-            raise PreventUpdate
-
-        optionchain_df = pd.read_json(optionchain_data, orient='split')
-        df = optionchain_df.filter(['Ticker', 'Exp. Date (Local)', 'Type', 'Exp. Days', 'Strike', 'Open Int.', 'Total Vol.'])
-
-        # For filtering open i/r graph base on expday options
-        expday_options_ls = df['Exp. Days'].unique()
-        expday_options = [{"label": f"Strike Date: {(datetime.now()+timedelta(days=days_to_exp.item())).date()} (Days to Expiry: {days_to_exp})", 
-                            "value": days_to_exp} for days_to_exp in list(expday_options_ls)]
-
-        fig = go.Figure()
-
-        exp_days_ls = df['Exp. Days'].to_list()
-        
-        if expday_graph_selection is None:
-            expday_select = max(exp_days_ls)
-        else:
-            expday_select = expday_graph_selection
-
-        # Note: .squeeze() is to convert Dataframe into Series format after df.loc()
-        # Colour options: https://developer.mozilla.org/en-US/docs/Web/CSS/color_value
-        for option_type in ('PUT','CALL'):
-            if option_type == 'PUT':
-                bar_color = 'indianred'
-            else:
-                bar_color = 'lightseagreen'
-            fig.add_trace(go.Scatter(
-                        x=df.loc[(df['Type']==option_type) & (df['Exp. Days']==expday_select),['Strike']].squeeze(), 
-                        y=df.loc[(df['Type']==option_type) & (df['Exp. Days']==expday_select),['Total Vol.']].squeeze(),
-                        mode='lines+markers',
-                        name=f'{ticker} - Total {option_type} Volume',
-                        line_shape='spline',
-                        marker_color=bar_color)
-                        )
-            fig.add_trace(go.Bar(
-                        x=df.loc[(df['Type']==option_type) & (df['Exp. Days']==expday_select),['Strike']].squeeze(),
-                        y=df.loc[(df['Type']==option_type) & (df['Exp. Days']==expday_select),['Open Int.']].squeeze(),
-                        name=f'{ticker} - Open {option_type} Interest',
-                        marker_color=bar_color,
-                        opacity=0.5)
-                    )    
-        fig.update_layout(
-            title=f'Open Interest/Volume',
-            title_x=0.5, # Centre the title text
-            xaxis_title='Strike Price',
-            yaxis_title='No. of Contracts',
-            plot_bgcolor='rgb(256,256,256)' # White Plot background
-        )
-
-        return fig, expday_options
