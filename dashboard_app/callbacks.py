@@ -406,8 +406,8 @@ def register_callbacks(app, API_KEY):
     # Update Ticker Table from API Response call
     @app.callback(Output('ticker-data-table', 'data'),
                 [Input('submit-button-state', 'n_clicks'), Input('storage-historical', 'data'), Input('storage-option-chain-all', 'data'), Input('ticker-data-table', "page_current"), Input('ticker-data-table', "page_size"), Input('ticker-data-table', "sort_by")],
-                [State('memory-ticker', 'value'), State('memory-volest-type','value')])
-    def on_data_set_ticker_table(n_clicks, hist_data, optionchain_data, page_current, page_size, sort_by, ticker, vol_est_type):
+                [State('memory-ticker', 'value')])
+    def on_data_set_ticker_table(n_clicks, hist_data, optionchain_data, page_current, page_size, sort_by, ticker):
         
         # Define empty list to be accumulate into Pandas dataframe (Source: https://stackoverflow.com/questions/10715965/add-one-row-to-pandas-dataframe)
         insert = []
@@ -416,16 +416,10 @@ def register_callbacks(app, API_KEY):
             raise PreventUpdate 
 
         option_chain_response = tos_get_option_chain(ticker, contractType='ALL', rangeType='ALL', apiKey=API_KEY)
-        price_df = pd.DataFrame(hist_data[ticker]['candles'])
-
+        
         # Sanity check on API response data
         if option_chain_response is None or list(option_chain_response.keys())[0] == "error":
             raise PreventUpdate 
-
-        hist_volatility_1Y = get_hist_volatility(price_df, window=252, estimator=vol_est_type).iloc[-1]
-        hist_volatility_3m = get_hist_volatility(price_df, window=90, estimator=vol_est_type).iloc[-1]
-        hist_volatility_1m = get_hist_volatility(price_df, window=30, estimator=vol_est_type).iloc[-1]
-        hist_volatility_2w = get_hist_volatility(price_df, window=14, estimator=vol_est_type).iloc[-1]
 
         stock_price = option_chain_response['underlyingPrice']
         stock_price_110percent = stock_price * 1.1
@@ -513,7 +507,7 @@ def register_callbacks(app, API_KEY):
             skew_category = 'Call Skew'
             skew = round(call_110percent_price/put_90percent_price,3)
 
-        insert.append([ticker, hist_volatility_1Y, hist_volatility_3m, hist_volatility_1m, hist_volatility_2w, skew_category, skew, liquidity])
+        insert.append([ticker, skew_category, skew, liquidity])
     
         # Create Empty Dataframe to be populated
         df = pd.DataFrame(insert, columns=[column['id'] for column in ticker_df_columns])

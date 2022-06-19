@@ -17,10 +17,6 @@ percentage = FormatTemplate.percentage(2)
 # Define column names in Ticker Pandas Dataframe
 ticker_df_columns=[
     dict(id='ticker', name='Ticker'),
-    dict(id='hist_volatility_1Y', name='1Y Hist. Vol', type='numeric', format=percentage),
-    dict(id='hist_volatility_3m', name='3M Hist. Vol', type='numeric', format=percentage),
-    dict(id='hist_volatility_1m', name='1M Hist. Vol', type='numeric', format=percentage),
-    dict(id='hist_volatility_2w', name='2w Hist. Vol', type='numeric', format=percentage),
     dict(id='skew_category', name='Skew Category'),
     dict(id='skew', name='Skew'),
     dict(id='liquidity', name='Liquidity'),
