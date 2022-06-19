@@ -306,29 +306,42 @@ def register_callbacks(app, API_KEY):
                 raise PreventUpdate  
         price_df = pd.DataFrame(hist_data[ticker]['candles'])
 
-        if tab == 'vol_tab_2w': # 2 weeks
-            volatility_period = 14
-        elif tab == 'vol_tab_1M': # 1 Month
-            volatility_period = 30
-        elif tab == 'vol_tab_3M': # 3 Months
-            volatility_period = 90
-        elif tab == 'vol_tab_1Y': # 1 Year
-            volatility_period = 252           
+        vol_tab_dict = {
+            'vol_tab_2w': 14,
+            'vol_tab_1M': 30,
+            'vol_tab_3M': 90,
+            'vol_tab_1Y': 252
+        }
+
+        volatility_period = vol_tab_dict[tab]        
         
-        # Pandas Series
-        hist_volatility = get_hist_volatility(price_df, volatility_period, estimator=vol_est_type)
+        vol_est_ls = ['log_returns', 'garman_klass', 'hodges_tompkins', 'parkinson', 'rogers_satchell', 'yang_zhang']
         
-        hist_volatility_df = pd.DataFrame({ 'Day' : range(1, len(hist_volatility) + 1 ,1),
-                                            'Vol' : hist_volatility})
+        hist_volatility_dict = {}
+
+        for vol_est in vol_est_ls:
+            # Pandas Series
+            hist_volatility = get_hist_volatility(price_df, volatility_period, estimator=vol_est)
+
+            # Note: Volality Estimators in ('garman_klass', 'parkinson', 'rogers_satchell') have one extra value in Pandas Series, have to remove first entry to plot
+            if vol_est in ('garman_klass', 'parkinson', 'rogers_satchell'):
+                hist_volatility_dict[vol_est] = hist_volatility.iloc[1:]
+            else:
+                hist_volatility_dict[vol_est] = hist_volatility
+
+        hist_volatility_dict['Day'] = range(1, len(hist_volatility_dict['log_returns']) + 1 ,1)
+        
+        hist_volatility_df = pd.DataFrame(hist_volatility_dict)
         fig = go.Figure()
 
-        fig.add_trace(go.Scatter(
-                        x=hist_volatility_df['Day'].squeeze(),
-                        y=hist_volatility_df['Vol'].squeeze(),
-                        mode='lines+markers',
-                        name=f'{ticker}: Rolling Volatility ({volatility_period} days)',
-                        line_shape='spline')
-                    )
+        for vol_est in vol_est_ls:
+            fig.add_trace(go.Scatter(
+                            x=hist_volatility_df['Day'].squeeze(),
+                            y=hist_volatility_df[vol_est].squeeze(),
+                            mode='lines+markers',
+                            name=f'{ticker}: {vol_est}',
+                            line_shape='spline')
+                        )
 
         fig.update_layout(
                 title=f'Historical Volatility (Window: {volatility_period} days)',
