@@ -346,7 +346,7 @@ def register_callbacks(app, API_KEY):
         fig.update_layout(
                 title=f'Historical Volatility (Window: {volatility_period} days)',
                 title_x=0.5, # Centre the title text
-                yaxis_title='Stock Price',
+                yaxis_title='Estimated Volatility',
                 plot_bgcolor='rgb(256,256,256)' # White Plot background
             )
 
