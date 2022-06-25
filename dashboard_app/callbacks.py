@@ -55,14 +55,20 @@ def register_callbacks(app, API_KEY):
     # Temporarily stores JSON data in the browser (generally safe to store up to 2MB of data)
     @app.callback(Output('storage-historical', 'data'),
                 [Input('submit-button-state', 'n_clicks')],
-                [State('memory-ticker', 'value')])
-    def get_historical_prices(n_clicks, ticker):
+                [State('memory-ticker', 'value'), State('memory-vol-period','value'), State('memory-volest-type','value')])
+    def get_historical_prices(n_clicks, ticker, volatility_period, vol_est_type):
 
         if ticker is None:
             raise PreventUpdate 
 
+        hist_data = tos_get_price_hist(ticker, apiKey=API_KEY)
+
         json_data = {}
-        json_data[ticker] = tos_get_price_hist(ticker, apiKey=API_KEY)
+        json_data[ticker] = hist_data
+
+        # Store estimated volatility value for downstream callbacks
+        price_df = pd.DataFrame(hist_data['candles'])
+        json_data['est_vol'] = get_hist_volatility(price_df, volatility_period, estimator=vol_est_type).iloc[-1]
 
         return json_data
 
@@ -80,8 +86,8 @@ def register_callbacks(app, API_KEY):
     # Temporarily stores JSON data in the browser (generally safe to store up to 2MB of data)
     @app.callback(Output('storage-option-chain-all', 'data'),
                 [Input('submit-button-state', 'n_clicks'), Input('storage-historical', 'data'), Input('storage-quotes', 'data')],
-                [State('memory-ticker', 'value'), State('memory-expdays','value'), State('memory-vol-period','value'), State('memory-confidence','value'), State('memory-volest-type','value')])
-    def get_option_chain_all(n_clicks, hist_data, quotes_data, ticker, expday_range, volatility_period, confidence_lvl, vol_est_type):
+                [State('memory-ticker', 'value'), State('memory-expdays','value'), State('memory-confidence','value')])
+    def get_option_chain_all(n_clicks, hist_data, quotes_data, ticker, expday_range, confidence_lvl):
 
         if ticker is None:
             raise PreventUpdate 
@@ -93,7 +99,7 @@ def register_callbacks(app, API_KEY):
         price_df = pd.DataFrame(hist_data[ticker]['candles'])
 
         current_date = datetime.now()
-        hist_volatility = get_hist_volatility(price_df, volatility_period, estimator=vol_est_type).iloc[-1]
+        hist_volatility = hist_data['est_vol']
         stock_price = quotes_data[ticker]['lastPrice']
 
         # Process API response data from https://developer.tdameritrade.com/option-chains/apis/get/marketdata/chains into Dataframe
@@ -190,8 +196,8 @@ def register_callbacks(app, API_KEY):
     # Update Prob Cone Graph based on stored JSON value from API Response call 
     @app.callback(Output('prob_cone_chart', 'figure'),
                 [Input('storage-option-chain-all', 'data'), Input('storage-historical', 'data'), Input('storage-quotes', 'data'), Input('tabs_prob_chart', 'value')],
-                [State('memory-ticker', 'value'), State('memory-expdays','value'), State('memory-vol-period','value'), State('memory-confidence','value'),State('memory-volest-type','value')])
-    def on_data_set_prob_cone(optionchain_data, hist_data, quotes_data, tab, ticker, expday_range, volatility_period, confidence_lvl, vol_est_type):
+                [State('memory-ticker', 'value'), State('memory-expdays','value'), State('memory-confidence','value')])
+    def on_data_set_prob_cone(optionchain_data, hist_data, quotes_data, tab, ticker, expday_range, confidence_lvl):
         
         # Define empty list to be accumulate into Pandas dataframe (Source: https://stackoverflow.com/questions/10715965/add-one-row-to-pandas-dataframe)
         insert = []   
@@ -208,7 +214,7 @@ def register_callbacks(app, API_KEY):
 
         price_df = pd.DataFrame(hist_data[ticker]['candles'])
 
-        hist_volatility = get_hist_volatility(price_df, volatility_period, estimator=vol_est_type).iloc[-1]
+        hist_volatility = hist_data['est_vol']
         stock_price = quotes_data[ticker]['lastPrice']
 
         if tab == 'prob_cone_tab': # Historical Volatlity            
@@ -299,8 +305,8 @@ def register_callbacks(app, API_KEY):
     # Update Historical Volatility Graph based on selected Volatility Estimator
     @app.callback(Output('vol_chart', 'figure'),
                 [Input('storage-historical', 'data'), Input('tabs_vol_chart', 'value')],
-                [State('memory-ticker', 'value'), State('memory-volest-type', 'value')])
-    def on_data_set_vol_history(hist_data, tab, ticker, vol_est_type):
+                [State('memory-ticker', 'value')])
+    def on_data_set_vol_history(hist_data, tab, ticker):
 
         if hist_data is None:
                 raise PreventUpdate  
@@ -346,6 +352,7 @@ def register_callbacks(app, API_KEY):
         fig.update_layout(
                 title=f'Historical Volatility (Window: {volatility_period} days)',
                 title_x=0.5, # Centre the title text
+                xaxis_title='Days',
                 yaxis_title='Estimated Volatility',
                 plot_bgcolor='rgb(256,256,256)' # White Plot background
             )
@@ -360,7 +367,7 @@ def register_callbacks(app, API_KEY):
     @app.callback([Output('open_ir_vol', 'figure'),Output('memory_exp_day_graph', 'options')],
                 [Input('storage-option-chain-all', 'data')],
                 [State('memory-ticker', 'value'), State('memory-expdays','value'), State('memory_exp_day_graph','value')])
-    def on_data_set_open_interest_vol(optionchain_data, ticker, expday_range, expday_graph_selection):
+    def on_data_init_open_interest_vol(optionchain_data, ticker, expday_range, expday_graph_selection):
         
         if optionchain_data is None:
             raise PreventUpdate
@@ -405,7 +412,7 @@ def register_callbacks(app, API_KEY):
                         opacity=0.5)
                     )    
         fig.update_layout(
-            title=f'Open Interest/Volume',
+            title=f'Open Interest/Volume - {expday_select} days',
             title_x=0.5, # Centre the title text
             xaxis_title='Strike Price',
             yaxis_title='No. of Contracts',
