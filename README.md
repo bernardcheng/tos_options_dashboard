@@ -77,6 +77,7 @@ Filter options include:
    * Day(s) to Expiration: 0-100 days (Default: 0-14 days)
    * Confidence Level: (Default: 30% Confidence)
    * Historical Volatility Level: (Default: 1 Month)
+   * Volaility Estimator: (Default: Log Returns/Standard Deviation)
 
    To proceed with the search function, select on the **Submit** button.
 
@@ -86,7 +87,16 @@ Filter options include:
 
    ![step4-results](/doc_img/step4-results.png)
 
-5. The open interest and volume of the options chain is generated. Note: The options chain with expiry date closest to the 'Day(s) to Expiration' field is used (i.e. if option 0-14 days is selected, the graph will show the option chain with number of expiry days closest to 14)
+5. The open interest and volume of the options chain is generated with the rolling estimated volatilities using different estimators. Note: The options chain with expiry date closest to the 'Day(s) to Expiration' field is used before manual selection from the dropdown field (i.e. if option 0-14 days is selected, the graph will show the option chain with number of expiry days closest to 14 first)
+
+   * Standard Deviation: Using defintion of standard deviation to derive volatility
+   * Parkinson: The Parkinson model uses daily High and Low prices and has no drift term. Its efficiency intuitively comes from the fact that the price range of intraday gives more information regarding the future volatility than two arbitrary points in the series. It uses range the highest value –the lowest value variance instead of a widely used method for estimating variance of Log- transformed stock returns.
+   * Garman & Klass: The Garman & Klass volatility estimator which make use of daily Opening, Closing, High and Low prices of the stock. The estimator assumes the underlying process is govern by Brownian motion with zero drift and has no opening jump.
+   * Rogers & Satchell: Rogers & Satchell volatility estimator is independent of the drift  and Independent  of opening gaps  weighted average  is the Rogers-Satchell. The estimator makes use of the Open-Close volatility and Close-Open volatility. When the estimator is heavily dominated by opening jumps, its performance degrades to the classical Close-to-Close estimator
+   * Yang Zhang: Yang Zhang volatility estimator has the following properties:
+      1. Independent of the drift; 
+      2. Independent of opening gaps weighted average of Rogers-Satchell, Open-Close and Close-Open volatility; 
+      3. When heavily dominated by opening jumps, the performance degrades to classical Close-to-Close volatility estimator.  
 
    ![step5-results](/doc_img/step5-results.png)
 
@@ -96,3 +106,7 @@ Filter options include:
    * Call Skew: Defined as the price of 10% OTM calls/10% OTM puts for the next monthly option expiry.
 
    ![step6-results](/doc_img/step6-results.png)
+
+### Citiations
+1. Oyediran, Oyelami & Sambo, Eric. (2017). Comparative Analysis of Some Volatility Estimators: An Application to Historical Data from the Nigerian Stock Exchange Market. 4. 13-35.
+2. jasonstrimpel (2021) volatility-trading [Source Code]. https://github.com/jasonstrimpel/volatility-trading
