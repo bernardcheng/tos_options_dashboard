@@ -107,6 +107,6 @@ Filter options include:
 
    ![step6-results](/doc_img/step6-results.png)
 
-### Citiations
+### Citations
 1. Oyediran, Oyelami & Sambo, Eric. (2017). Comparative Analysis of Some Volatility Estimators: An Application to Historical Data from the Nigerian Stock Exchange Market. 4. 13-35.
 2. jasonstrimpel (2021) volatility-trading [Source Code]. https://github.com/jasonstrimpel/volatility-trading
