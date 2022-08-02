@@ -428,12 +428,45 @@ def register_callbacks(app, API_KEY):
                 [Input('submit-button-state', 'n_clicks'), Input('storage-historical', 'data'), Input('storage-option-chain-all', 'data'), Input('ticker-data-table', "page_current"), Input('ticker-data-table', "page_size"), Input('ticker-data-table', "sort_by")],
                 [State('memory-ticker', 'value')])
     def on_data_set_ticker_table(n_clicks, hist_data, optionchain_data, page_current, page_size, sort_by, ticker):
-        
-        # Define empty list to be accumulate into Pandas dataframe (Source: https://stackoverflow.com/questions/10715965/add-one-row-to-pandas-dataframe)
-        insert = []
 
-        if ticker is None:
-            raise PreventUpdate 
+        if ticker is None or optionchain_data is None:
+            raise PreventUpdate
+
+        # For calculating max pain, Put/Call ratio
+        optionchain_df = pd.read_json(optionchain_data, orient='split')
+
+        def _total_loss_on_strike(chain, expiry_price):
+            '''
+            Get the total loss at the given strike price
+            '''    
+            # call options with strike price below the expiry price -> loss for option writers
+            callChain = chain.loc[chain['Type'] == 'CALL']
+            callChain = callChain.dropna()       
+            in_money_calls = callChain[callChain['Strike'] < expiry_price][["Open Int.", "Strike"]]
+            in_money_calls["call_loss"] = (expiry_price - in_money_calls['Strike'])*in_money_calls["Open Int."]
+
+            # get puts n drop null values
+            putChain = chain.loc[chain['Type'] == 'PUT']
+            putChain = putChain.dropna()    
+            
+            # put options with strike price above the expiry price -> loss for option writers
+            in_money_puts = putChain[putChain['Strike'] > expiry_price][["Open Int.", "Strike"]]
+            in_money_puts["put_loss"] = (in_money_puts['Strike'] - expiry_price)*in_money_puts["Open Int."]
+            total_loss = in_money_calls["call_loss"].sum() + in_money_puts["put_loss"].sum()
+
+            return total_loss
+
+        strikes = optionchain_df.get(['Strike']).values.tolist()
+        losses = [_total_loss_on_strike(optionchain_df, strike[0]) for strike in strikes] 
+        
+        # max pain min loss to option writers/sellers at strike price
+        flat_strikes = [item for sublist in strikes for item in sublist]
+        point = losses.index(min(losses))
+        max_pain = flat_strikes[point]
+
+        # For calculating Skew Category, Skew and Liquidity
+        # Define empty list to be accumulate into Pandas dataframe (Source: https://stackoverflow.com/questions/10715965/add-one-row-to-pandas-dataframe)
+        insert = []         
 
         option_chain_response = tos_get_option_chain(ticker, contractType='ALL', rangeType='ALL', apiKey=API_KEY)
         
@@ -527,7 +560,7 @@ def register_callbacks(app, API_KEY):
             skew_category = 'Call Skew'
             skew = round(call_110percent_price/put_90percent_price,3)
 
-        insert.append([ticker, skew_category, skew, liquidity])
+        insert.append([ticker, skew_category, skew, liquidity, max_pain])
     
         # Create Empty Dataframe to be populated
         df = pd.DataFrame(insert, columns=[column['id'] for column in ticker_df_columns])

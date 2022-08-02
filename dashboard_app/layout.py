@@ -20,6 +20,7 @@ ticker_df_columns=[
     dict(id='skew_category', name='Skew Category'),
     dict(id='skew', name='Skew'),
     dict(id='liquidity', name='Liquidity'),
+    dict(id='max_pain', name='Max Pain', type='numeric', format=money_full),
 ]
 
 # Define column names in Options Chain Pandas Dataframe
