@@ -366,8 +366,8 @@ def register_callbacks(app, API_KEY):
     # Update Open Interest/Volume Graph based on stored JSON value from API Response call (does not work with multiple tickers selected)
     @app.callback([Output('open_ir_vol', 'figure'),Output('memory_exp_day_graph', 'options')],
                 [Input('storage-option-chain-all', 'data')],
-                [State('memory-ticker', 'value'), State('memory-expdays','value'), State('memory_exp_day_graph','value')])
-    def on_data_init_open_interest_vol(optionchain_data, ticker, expday_range, expday_graph_selection):
+                [State('memory-ticker', 'value'), State('memory-expdays','value'), State('memory_exp_day_graph','value'), State('oitv_type','value')])
+    def on_data_init_open_interest_vol(optionchain_data, ticker, expday_range, expday_graph_selection, oitv_type):
         
         if optionchain_data is None:
             raise PreventUpdate
@@ -389,33 +389,89 @@ def register_callbacks(app, API_KEY):
         else:
             expday_select = expday_graph_selection
 
-        # Note: .squeeze() is to convert Dataframe into Series format after df.loc()
-        # Colour options: https://developer.mozilla.org/en-US/docs/Web/CSS/color_value
-        for option_type in ('PUT','CALL'):
-            if option_type == 'PUT':
-                bar_color = 'indianred'
-            else:
-                bar_color = 'lightseagreen'
-            fig.add_trace(go.Scatter(
-                        x=df.loc[(df['Type']==option_type) & (df['Exp. Days']==expday_select),['Strike']].squeeze(), 
-                        y=df.loc[(df['Type']==option_type) & (df['Exp. Days']==expday_select),['Total Vol.']].squeeze(),
-                        mode='lines+markers',
-                        name=f'{ticker}: Total {option_type} Volume',
-                        line_shape='spline',
-                        marker_color=bar_color)
+        if oitv_type == 'oitv':
+            # Note: .squeeze() is to convert Dataframe into Series format after df.loc()
+            # Colour options: https://developer.mozilla.org/en-US/docs/Web/CSS/color_value
+            for option_type in ('PUT','CALL'):
+                if option_type == 'PUT':
+                    bar_color = 'indianred'
+                else:
+                    bar_color = 'lightseagreen'
+                fig.add_trace(go.Scatter(
+                            x=df.loc[(df['Type']==option_type) & (df['Exp. Days']==expday_select),['Strike']].squeeze(), 
+                            y=df.loc[(df['Type']==option_type) & (df['Exp. Days']==expday_select),['Total Vol.']].squeeze(),
+                            mode='lines+markers',
+                            name=f'{ticker}: Total {option_type} Volume',
+                            line_shape='spline',
+                            marker_color=bar_color)
+                            )
+                fig.add_trace(go.Bar(
+                            x=df.loc[(df['Type']==option_type) & (df['Exp. Days']==expday_select),['Strike']].squeeze(),
+                            y=df.loc[(df['Type']==option_type) & (df['Exp. Days']==expday_select),['Open Int.']].squeeze(),
+                            name=f'{ticker}: Open {option_type} Interest',
+                            marker_color=bar_color,
+                            opacity=0.5)
                         )
+            plot_title = 'Open Interest/Total Volume'
+            yaxis_title = 'No. of Contracts'
+
+        elif oitv_type == 'max_pain':
+            def _total_loss_on_strike(chain, expiry_price):
+                '''
+                Get the total loss at the given strike price
+                '''    
+                # call options with strike price below the expiry price -> loss for option writers
+                callChain = chain.loc[chain['Type'] == 'CALL']
+                callChain = callChain.dropna()       
+                in_money_calls = callChain[callChain['Strike'] < expiry_price][["Open Int.", "Strike"]]
+                in_money_calls["call_loss"] = (expiry_price - in_money_calls['Strike'])*in_money_calls["Open Int."]
+
+                # get puts n drop null values
+                putChain = chain.loc[chain['Type'] == 'PUT']
+                putChain = putChain.dropna()    
+                
+                # put options with strike price above the expiry price -> loss for option writers
+                in_money_puts = putChain[putChain['Strike'] > expiry_price][["Open Int.", "Strike"]]
+                in_money_puts["put_loss"] = (in_money_puts['Strike'] - expiry_price)*in_money_puts["Open Int."]
+                total_loss = in_money_calls["call_loss"].sum() + in_money_puts["put_loss"].sum()
+
+                return total_loss
+
+            optionchain_df = optionchain_df.loc[optionchain_df['Exp. Days']==expday_select]
+            strikes = optionchain_df.get(['Strike']).values.tolist()
+            losses = [_total_loss_on_strike(optionchain_df, strike[0]) for strike in strikes] 
+            
+            # max pain min loss to option writers/sellers at strike price
+            flat_strikes = [item for sublist in strikes for item in sublist]
+            point = losses.index(min(losses))
+            max_pain = flat_strikes[point]
+
+            # get the cummulated losses
+            total_losses = {}
+            for i in range(len(flat_strikes)):
+                if flat_strikes[i] not in total_losses: total_losses[flat_strikes[i]] = losses[i]
+                else: total_losses[flat_strikes[i]] += losses[i]
+
             fig.add_trace(go.Bar(
-                        x=df.loc[(df['Type']==option_type) & (df['Exp. Days']==expday_select),['Strike']].squeeze(),
-                        y=df.loc[(df['Type']==option_type) & (df['Exp. Days']==expday_select),['Open Int.']].squeeze(),
-                        name=f'{ticker}: Open {option_type} Interest',
-                        marker_color=bar_color,
-                        opacity=0.5)
-                    )    
+                            x=list(set(list(total_losses.keys()))), 
+                            y=list(total_losses.values()),
+                            name=f'{ticker}: Total Losses')
+                            )
+            fig.add_trace(go.Bar(
+                            x=[max_pain], 
+                            y=[total_losses[max_pain]],
+                            name=f'{ticker}: Max Pain Strike',
+                            marker_color='indianred')
+                            )
+
+            plot_title = 'Max Pain Plot'
+            yaxis_title = 'Cumulative Losses'
+
         fig.update_layout(
-            title=f'Open Interest/Volume - {expday_select} days',
+            title=f'{plot_title} - {expday_select} days',
             title_x=0.5, # Centre the title text
             xaxis_title='Strike Price',
-            yaxis_title='No. of Contracts',
+            yaxis_title=yaxis_title,
             plot_bgcolor='rgb(256,256,256)' # White Plot background
         )
 
@@ -431,38 +487,6 @@ def register_callbacks(app, API_KEY):
 
         if ticker is None or optionchain_data is None:
             raise PreventUpdate
-
-        # For calculating max pain, Put/Call ratio
-        optionchain_df = pd.read_json(optionchain_data, orient='split')
-
-        def _total_loss_on_strike(chain, expiry_price):
-            '''
-            Get the total loss at the given strike price
-            '''    
-            # call options with strike price below the expiry price -> loss for option writers
-            callChain = chain.loc[chain['Type'] == 'CALL']
-            callChain = callChain.dropna()       
-            in_money_calls = callChain[callChain['Strike'] < expiry_price][["Open Int.", "Strike"]]
-            in_money_calls["call_loss"] = (expiry_price - in_money_calls['Strike'])*in_money_calls["Open Int."]
-
-            # get puts n drop null values
-            putChain = chain.loc[chain['Type'] == 'PUT']
-            putChain = putChain.dropna()    
-            
-            # put options with strike price above the expiry price -> loss for option writers
-            in_money_puts = putChain[putChain['Strike'] > expiry_price][["Open Int.", "Strike"]]
-            in_money_puts["put_loss"] = (in_money_puts['Strike'] - expiry_price)*in_money_puts["Open Int."]
-            total_loss = in_money_calls["call_loss"].sum() + in_money_puts["put_loss"].sum()
-
-            return total_loss
-
-        strikes = optionchain_df.get(['Strike']).values.tolist()
-        losses = [_total_loss_on_strike(optionchain_df, strike[0]) for strike in strikes] 
-        
-        # max pain min loss to option writers/sellers at strike price
-        flat_strikes = [item for sublist in strikes for item in sublist]
-        point = losses.index(min(losses))
-        max_pain = flat_strikes[point]
 
         # For calculating Skew Category, Skew and Liquidity
         # Define empty list to be accumulate into Pandas dataframe (Source: https://stackoverflow.com/questions/10715965/add-one-row-to-pandas-dataframe)
@@ -560,7 +584,7 @@ def register_callbacks(app, API_KEY):
             skew_category = 'Call Skew'
             skew = round(call_110percent_price/put_90percent_price,3)
 
-        insert.append([ticker, skew_category, skew, liquidity, max_pain])
+        insert.append([ticker, skew_category, skew, liquidity])
     
         # Create Empty Dataframe to be populated
         df = pd.DataFrame(insert, columns=[column['id'] for column in ticker_df_columns])

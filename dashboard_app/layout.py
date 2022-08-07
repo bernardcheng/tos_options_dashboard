@@ -19,8 +19,7 @@ ticker_df_columns=[
     dict(id='ticker', name='Ticker'),
     dict(id='skew_category', name='Skew Category'),
     dict(id='skew', name='Skew'),
-    dict(id='liquidity', name='Liquidity'),
-    dict(id='max_pain', name='Max Pain', type='numeric', format=money_full),
+    dict(id='liquidity', name='Liquidity')
 ]
 
 # Define column names in Options Chain Pandas Dataframe
@@ -264,7 +263,22 @@ app_layout = html.Div([
                                 # style={'width': '30%', 'display': 'inline-block'}
                             )
                         ),
-                        dbc.Col()
+                        dbc.Col(
+                            html.Div([
+                                html.H5("Open Interest/Volume Plot Type:"),
+                                dcc.Dropdown(
+                                        id="oitv_type",
+                                        options=[
+                                            {"label": "Open Interest/ Total Volume", "value": "oitv"},
+                                            {"label": "Max Pain", "value": "max_pain"}
+                                        ],
+                                        multi=False,
+                                        value="oitv"
+                                    )
+                                ],
+                                # style={'width': '30%', 'display': 'inline-block'}
+                            )
+                        ),
                     ]
                 ),          
         ],
@@ -365,7 +379,7 @@ app_layout = html.Div([
         className="pretty_container",
         style={'width': '48%', 'display': 'inline-block'}
         ),
-        html.Div([ 
+        html.Div([
             dcc.Dropdown(
                 id="memory_exp_day_graph",
                 placeholder="Select expiration date after entering the above fields.",
