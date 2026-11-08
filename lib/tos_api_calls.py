@@ -25,7 +25,7 @@ def tos_get_price_hist(ticker_symbol:str, period=1, periodType='year', frequency
                 }
 
     # Make a request
-    content = requests.get(url = endpoint, params = payload)
+    content = requests.get(url = endpoint, params = payload, timeout=30)
 
     return content.json()
 
@@ -44,7 +44,7 @@ def tos_get_quotes(ticker_symbols:str, apiKey=None):
     }
 
      # Make a request
-    content = requests.get(url = endpoint, params = payload)
+    content = requests.get(url = endpoint, params = payload, timeout=30)
 
     return content.json()
 
@@ -64,7 +64,7 @@ def tos_search(symbol:str, projection='desc-search', apiKey=None):
     }
 
      # Make a request
-    content = requests.get(url = endpoint, params = payload)
+    content = requests.get(url = endpoint, params = payload, timeout=30)
 
     return content.json()
 
@@ -105,7 +105,7 @@ def tos_get_option_chain(ticker_symbol:str, contractType='ALL', rangeType='OTM',
                 }
 
     # Make a request
-    content = requests.get(url = endpoint, params = payload)
+    content = requests.get(url = endpoint, params = payload, timeout=30)
 
     return content.json()    
 
@@ -124,7 +124,7 @@ def tos_get_fundamental_data(ticker_symbol:str, apiKey=None, search='fundamental
                 }
     
     # Make a request
-    content = requests.get(url = endpoint, params = payload)
+    content = requests.get(url = endpoint, params = payload, timeout=30)
 
     if raw:
         return content
